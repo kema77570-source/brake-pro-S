@@ -65,7 +65,7 @@ export default function Home() {
       <div className="w-full bg-primary/10 border-b border-primary/20 px-4 lg:px-6 py-6 flex items-center justify-center">
         <p
           className="text-primary/90 text-center leading-relaxed"
-          style={{ fontFamily: '"Yu Mincho", "游明朝", "YuMincho", "Hiragino Mincho ProN", serif', fontSize: "1.125rem" }}
+          style={{ fontFamily: '"Yu Mincho", "游明朝", "YuMincho", "Hiragino Mincho ProN", serif', fontSize: "1.5rem" }}
         >
           あなたを負かしているのは、相場ではなく感情かもしれない
         </p>
