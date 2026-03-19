@@ -33,8 +33,14 @@ import StockDetail from "./pages/StockDetail";
 import Connect from "./pages/Connect";
 import Backtest from "./pages/Backtest";
 import PaperTrade from "./pages/PaperTrade";
-import FomoAnalysis from "./pages/FomoAnalysis";
+import LeadLagAnalysis from "./pages/LeadLagAnalysis";
+import StockAnalysisPro from "./pages/StockAnalysisPro";
+import NisaTracker from "./pages/NisaTracker";
+import GripStrengthChampionship from "./pages/GripStrengthChampionship";
+import NotificationSettings from "./pages/NotificationSettings";
 import NotFound from "./pages/NotFound";
+import StrategyReview from "./pages/StrategyReview";
+import OrderManager from "./pages/OrderManager";
 
 function Router() {
   return (
@@ -63,7 +69,13 @@ function Router() {
         <Route path="/connect" component={Connect} />
         <Route path="/backtest" component={Backtest} />
         <Route path="/paper" component={PaperTrade} />
-        <Route path="/fomo" component={FomoAnalysis} />
+        <Route path="/lead-lag" component={LeadLagAnalysis} />
+        <Route path="/stock-analysis" component={StockAnalysisPro} />
+        <Route path="/nisa" component={NisaTracker} />
+        <Route path="/grip" component={GripStrengthChampionship} />
+        <Route path="/notifications" component={NotificationSettings} />
+        <Route path="/strategy-review/:tradeId" component={StrategyReview} />
+        <Route path="/order-manager" component={OrderManager} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

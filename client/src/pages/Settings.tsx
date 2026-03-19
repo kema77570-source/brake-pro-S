@@ -14,6 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/contexts/AppContext";
 import { DEFAULT_SETTINGS } from "@/lib/types";
+import type { HoldingCategoryLimits } from "@/lib/types";
 import { getLossStreak, saveLossStreak } from "@/lib/storage";
 import { toast } from "sonner";
 
@@ -349,6 +350,28 @@ export default function Settings() {
               <Plus className="w-4 h-4" />追加
             </Button>
           </div>
+        </Section>
+
+        {/* Holding Period Limits */}
+        <Section title="保有期間上限設定" icon={Clock}>
+          {([
+            { key: "day",    label: "デイトレード",    sub: "当日の最大保有時間（時間）" },
+            { key: "short",  label: "短期保有",        sub: "短期の最大保有時間（時間）" },
+            { key: "swing",  label: "スイングトレード", sub: "スイングの最大保有時間（時間）" },
+            { key: "medium", label: "中期投資",        sub: "中期の最大保有時間（時間）" },
+          ] as { key: keyof HoldingCategoryLimits; label: string; sub: string }[]).map(({ key, label, sub }) => (
+            <SettingRow key={key} label={label} sub={sub}>
+              <NumberInput
+                value={(settings.holdingLimits ?? DEFAULT_SETTINGS.holdingLimits)[key]}
+                onChange={(v) => updateSettings({
+                  holdingLimits: { ...(settings.holdingLimits ?? DEFAULT_SETTINGS.holdingLimits), [key]: v }
+                })}
+                min={1}
+                max={99999}
+                step={1}
+              />
+            </SettingRow>
+          ))}
         </Section>
 
         {/* Pledges */}

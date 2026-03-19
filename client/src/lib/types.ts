@@ -52,12 +52,21 @@ export interface TradeEntry {
   riskRewardPledgeConfirmed: boolean; // "リスクリワードについて明確な数字を計算した"
 
   // Trade psychology
+  mindset?: string;          // "rule" | "mostly_rule" | "neutral" | "mostly_emotion" | "emotion"
   triggerReason: string;
   entryReason: string;
   infoSource: string;
   whyNow: string;
   holdPeriodLabel: string;
   stopLossReason: string;
+
+  // Order routing
+  orderType?: "moomoo" | "other" | "demo";  // how/where the trade was routed
+
+  // Holding period tracking
+  holdingCategory?: HoldingCategory;     // derived from holdPeriodLabel
+  holdingDeadline?: string;              // ISO string - when this trade expires
+  strategyChanges?: StrategyChangeRecord[]; // history of category changes
 
   // Result
   result?: TradeResult;
@@ -191,6 +200,9 @@ export interface AppSettings {
   // VIX warning threshold
   vixWarningLevel: number;        // default: 25
   vixCriticalLevel: number;       // default: 35
+
+  // Holding period limits (hours)
+  holdingLimits: HoldingCategoryLimits;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -218,7 +230,47 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ],
   vixWarningLevel: 25,
   vixCriticalLevel: 35,
+  holdingLimits: {
+    day: 8,
+    short: 72,
+    swing: 336,
+    medium: 4320,
+    long: 99999,
+  },
 };
+
+// ─── Holding Period ─────────────────────────────────────────────────────────
+
+export type HoldingCategory = "day" | "short" | "swing" | "medium" | "long" | "undecided";
+
+export interface HoldingCategoryLimits {
+  day: number;      // hours - default 8 (same day, full trading hours)
+  short: number;    // hours - default 72 (3 business days)
+  swing: number;    // hours - default 336 (14 days)
+  medium: number;   // hours - default 4320 (180 days)
+  long: number;     // hours - default 99999 (open-ended, very large)
+}
+
+export const DEFAULT_HOLDING_LIMITS: HoldingCategoryLimits = {
+  day: 8,        // same day (8 trading hours)
+  short: 72,     // 3 business days
+  swing: 336,    // 14 days
+  medium: 4320,  // 180 days
+  long: 99999,   // open-ended
+};
+
+export interface StrategyChangeRecord {
+  id: string;
+  timestamp: string;
+  fromCategory: HoldingCategory;
+  toCategory: HoldingCategory;
+  stage: 1 | 2;
+  answers: Record<string, string>;
+  verdict: "strategy_update" | "delay" | "emotional" | "insufficient";
+  dangerLevel: "low" | "medium" | "high";
+  score: number;  // 0-100 emotional risk score
+  recommendedAction: string;
+}
 
 // ─── Market Data ────────────────────────────────────────────────────────────
 

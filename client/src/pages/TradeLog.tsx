@@ -4,14 +4,17 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Plus, TrendingUp, TrendingDown, CheckCircle, XCircle,
-  Clock, Filter, ChevronRight, Trash2,
+  Clock, ChevronRight, Trash2, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getTrades, saveTrade, deleteTrade, recordTradeResult } from "@/lib/storage";
 import { useApp } from "@/contexts/AppContext";
 import type { TradeEntry } from "@/lib/types";
+import { DEFAULT_HOLDING_LIMITS } from "@/lib/types";
+import { isOverDeadline, hoursUntilDeadline } from "@/lib/holdingPeriod";
 import { toast } from "sonner";
+import OrderFormModal from "@/components/OrderFormModal";
 
 type FilterType = "all" | "planning" | "active" | "closed";
 
@@ -29,8 +32,10 @@ const STATUS_COLORS: Record<string, string> = {
 export default function TradeLog() {
   const [, navigate] = useLocation();
   const { settings, refreshLossStreak, checkSuspension } = useApp();
+  const holdingLimits = settings.holdingLimits ?? DEFAULT_HOLDING_LIMITS;
   const [filter, setFilter] = useState<FilterType>("all");
   const [trades, setTrades] = useState<TradeEntry[]>(() => getTrades());
+  const [sellTarget, setSellTarget] = useState<TradeEntry | null>(null);
 
   const refresh = useCallback(() => setTrades(getTrades()), []);
 
@@ -144,7 +149,17 @@ export default function TradeLog() {
                     <p className="text-xs text-muted-foreground">{trade.name}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  {trade.orderType && (
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded border font-medium",
+                      trade.orderType === "moomoo" ? "text-primary bg-primary/10 border-primary/20" :
+                      trade.orderType === "demo" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                      "text-muted-foreground bg-muted/20 border-border/20"
+                    )}>
+                      {trade.orderType === "moomoo" ? "📱moomoo" : trade.orderType === "demo" ? "🧪デモ" : "🏦他社"}
+                    </span>
+                  )}
                   <span className={cn(
                     "text-xs px-2 py-1 rounded-full border font-medium",
                     trade.result === "win" ? "text-success bg-success/10 border-success/20" :
@@ -155,6 +170,22 @@ export default function TradeLog() {
                   </span>
                 </div>
               </div>
+
+              {/* Deadline indicator */}
+              {trade.status !== "closed" && (() => {
+                const overdue = isOverDeadline(trade, holdingLimits);
+                const hrs = hoursUntilDeadline(trade, holdingLimits);
+                if (!overdue && (hrs === null || hrs > 4)) return null;
+                return (
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-[10px] mb-2 px-1",
+                    overdue ? "text-destructive" : "text-amber-400"
+                  )}>
+                    <Clock className="w-3 h-3" />
+                    {overdue ? "期限超過 — 戦略を確認してください" : `期限まであと${Math.round(hrs!)}時間`}
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-3 gap-3 text-xs mb-3">
                 <div>
@@ -196,6 +227,16 @@ export default function TradeLog() {
                 )}
                 {trade.status === "active" && (
                   <>
+                    {trade.orderType === "moomoo" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSellTarget(trade)}
+                        className="text-xs text-primary border-primary/30 hover:bg-primary/10"
+                      >
+                        <Send className="w-3 h-3 mr-1" />売却注文
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => handleClose(trade, "win")} className="text-xs text-success border-success/30 hover:bg-success/10">
                       <CheckCircle className="w-3 h-3 mr-1" />勝ち
                     </Button>
@@ -223,6 +264,22 @@ export default function TradeLog() {
             </motion.div>
           ))}
         </div>
+      )}
+
+      {/* 売却注文モーダル */}
+      {sellTarget && (
+        <OrderFormModal
+          open={true}
+          onClose={() => setSellTarget(null)}
+          onSuccess={() => {
+            setSellTarget(null);
+            toast.success(`${sellTarget.ticker} の売却注文を送信しました`);
+          }}
+          ticker={sellTarget.ticker}
+          name={sellTarget.name}
+          side="SELL"
+          defaultPrice={sellTarget.takeProfitPrice ?? sellTarget.entryPrice}
+        />
       )}
     </div>
   );

@@ -23,11 +23,16 @@ import {
   Trophy,
   FlaskConical,
   Wifi,
-  Brain,
+  PiggyBank,
+  Dumbbell,
+  Microscope,
+  SendHorizonal,
 } from "lucide-react";
 import { useUserAuth } from "@/contexts/UserAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
+import NotificationBell from "@/components/NotificationBell";
+import HoldingDeadlineBanner from "@/components/HoldingDeadlineBanner";
 import type { ReactNode } from "react";
 
 const NAV_ITEMS = [
@@ -50,7 +55,12 @@ const NAV_ITEMS = [
   { href: "/backtest", icon: TrendingUp, label: "バックテスト" },
   { href: "/paper", icon: FlaskConical, label: "模擬取引" },
   { href: "/connect", icon: Wifi, label: "moomoo接続" },
-  { href: "/fomo", icon: Brain, label: "FOMO分析" },
+  { href: "/lead-lag",       icon: TrendingUp,     label: "日米リードラグ" },
+  { href: "/stock-analysis", icon: Microscope,       label: "銘柄分析Pro" },
+  { href: "/nisa",           icon: PiggyBank,       label: "NISA管理" },
+  { href: "/grip",           icon: Dumbbell,        label: "握力選手権" },
+  { href: "/notifications",  icon: Bell,            label: "通知設定" },
+  { href: "/order-manager", icon: SendHorizonal,   label: "注文管理" },
 ];
 
 interface LayoutProps {
@@ -71,12 +81,12 @@ export default function Layout({ children }: LayoutProps) {
       <aside className="hidden lg:flex lg:w-60 lg:flex-col lg:fixed lg:inset-y-0 lg:z-50">
         <div className="flex flex-col h-full border-r border-border/50 bg-sidebar">
           {/* Logo */}
-          <div className="px-6 py-6 border-b border-border/30">
+          <div className="px-4 py-4 border-b border-border/30">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-4 h-4 text-primary" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h1 className="font-display font-bold text-foreground text-sm tracking-wide">BRAKE Pro</h1>
                 <p className="text-muted-foreground text-xs flex items-center gap-1">
                   トレード心理管理
@@ -87,6 +97,7 @@ export default function Layout({ children }: LayoutProps) {
                   )}
                 </p>
               </div>
+              <NotificationBell />
             </div>
           </div>
 
@@ -172,6 +183,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main className="flex-1 lg:pl-60 pb-20 lg:pb-0 min-h-screen">
+        <HoldingDeadlineBanner />
         {children}
       </main>
 

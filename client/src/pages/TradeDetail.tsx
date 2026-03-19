@@ -1,18 +1,25 @@
 // BRAKE Pro — TradeDetail Page
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, TrendingUp, TrendingDown, CheckCircle, XCircle, Brain, Activity } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, CheckCircle, XCircle, Brain, Activity, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getTradeById, saveTrade } from "@/lib/storage";
 import { toast } from "sonner";
+import { computeDeadline, formatDeadline, isOverDeadline, labelToCategory, CATEGORY_LABELS } from "@/lib/holdingPeriod";
+import { useApp } from "@/contexts/AppContext";
+import { DEFAULT_HOLDING_LIMITS } from "@/lib/types";
+import OrderFormModal from "@/components/OrderFormModal";
 
 export default function TradeDetail() {
   const [, navigate] = useLocation();
   const { id } = useParams<{ id: string }>();
+  const { settings } = useApp();
   const [trade, setTrade] = useState(() => getTradeById(id));
   const [reflection, setReflection] = useState(trade?.reflection ?? "");
+  const [sellModalOpen, setSellModalOpen] = useState(false);
+  const holdingLimits = settings.holdingLimits ?? DEFAULT_HOLDING_LIMITS;
 
   if (!trade) {
     return (
@@ -63,12 +70,22 @@ export default function TradeDetail() {
             <h1 className="font-display text-2xl font-bold text-foreground">{trade.ticker}</h1>
             <p className="text-sm text-muted-foreground">{trade.name} · {trade.direction === "long" ? "ロング" : "ショート"}</p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
             {trade.result === "win" ? (
               <CheckCircle className="w-8 h-8 text-success" />
             ) : trade.result === "loss" ? (
               <XCircle className="w-8 h-8 text-destructive" />
             ) : null}
+            {trade.status === "active" && trade.orderType === "moomoo" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSellModalOpen(true)}
+                className="text-xs text-primary border-primary/30 hover:bg-primary/10 gap-1.5"
+              >
+                <Send className="w-3.5 h-3.5" />売却注文
+              </Button>
+            )}
           </div>
         </div>
 
@@ -155,12 +172,79 @@ export default function TradeDetail() {
           </div>
         )}
 
-        {/* Psychology */}
+        {/* Order type */}
+        {trade.orderType && (
+          <div className="rounded-xl border border-border/30 bg-card/50 p-4 mb-4 flex items-center gap-3">
+            <span className="text-2xl">
+              {trade.orderType === "moomoo" ? "📱" : trade.orderType === "demo" ? "🧪" : "🏦"}
+            </span>
+            <div>
+              <p className="text-xs text-muted-foreground">発注方法</p>
+              <p className="text-sm font-semibold text-foreground">
+                {trade.orderType === "moomoo" ? "MooMoo証券" : trade.orderType === "demo" ? "デモ取引" : "他の証券会社"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Holding deadline */}
+        {trade.status !== "closed" && trade.status !== "skipped" && (() => {
+          const deadline = computeDeadline(trade, holdingLimits);
+          const overdue = isOverDeadline(trade, holdingLimits);
+          if (!deadline) return null;
+          return (
+            <div className={cn(
+              "rounded-xl border p-4 mb-4",
+              overdue ? "bg-destructive/10 border-destructive/30" : "bg-amber-500/8 border-amber-500/20"
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className={cn("w-4 h-4", overdue ? "text-destructive" : "text-amber-400")} />
+                  <div>
+                    <p className="text-xs text-muted-foreground">保有期限</p>
+                    <p className={cn("text-sm font-semibold", overdue ? "text-destructive" : "text-foreground")}>
+                      {overdue ? "期限超過" : formatDeadline(deadline)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`/strategy-review/${trade.id}`)}
+                  className={cn(
+                    "text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors",
+                    overdue
+                      ? "bg-destructive/15 border-destructive/30 text-destructive hover:bg-destructive/25"
+                      : "bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25"
+                  )}
+                >
+                  {overdue ? "戦略を確認する" : "保有区分を変更"}
+                </button>
+              </div>
+              {trade.strategyChanges && trade.strategyChanges.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border/20">
+                  <p className="text-xs text-muted-foreground mb-1">変更履歴 ({trade.strategyChanges.length}件)</p>
+                  {trade.strategyChanges.slice(-2).map(c => (
+                    <div key={c.id} className="text-[10px] text-muted-foreground">
+                      {c.timestamp.slice(0, 10)} {CATEGORY_LABELS[c.fromCategory]}→{CATEGORY_LABELS[c.toCategory]}: {c.verdict === "strategy_update" ? "✅戦略更新" : "⚠️" + c.verdict}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Psychology / Survey answers */}
         <div className="rounded-xl border border-border/30 bg-card/50 p-5 mb-5">
-          <h2 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-4">心理記録</h2>
+          <h2 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-4">アンケート回答履歴</h2>
           <div className="space-y-3 text-sm">
             {[
-              { label: "きっかけ", value: trade.triggerReason },
+              { label: "心理状態", value: (() => {
+                const MAP: Record<string, string> = {
+                  rule: "🟢 完全にルール通り", mostly_rule: "🔵 ほぼルール通り",
+                  neutral: "⚪ どちらとも言えない", mostly_emotion: "🟡 やや感情寄り", emotion: "🔴 明らかに感情寄り",
+                };
+                return trade.mindset ? (MAP[trade.mindset] ?? trade.mindset) : "";
+              })() },
               { label: "エントリー理由", value: trade.entryReason },
               { label: "情報ソース", value: trade.infoSource },
               { label: "今やる理由", value: trade.whyNow },
@@ -168,8 +252,8 @@ export default function TradeDetail() {
               { label: "損切り根拠", value: trade.stopLossReason },
             ].filter((i) => i.value).map((item) => (
               <div key={item.label} className="flex gap-3">
-                <span className="text-muted-foreground w-24 shrink-0 text-xs">{item.label}</span>
-                <span className="text-foreground">{item.value}</span>
+                <span className="text-muted-foreground w-28 shrink-0 text-xs pt-0.5">{item.label}</span>
+                <span className="text-foreground leading-snug">{item.value}</span>
               </div>
             ))}
           </div>
@@ -189,6 +273,19 @@ export default function TradeDetail() {
           </Button>
         </div>
       </div>
+
+      <OrderFormModal
+        open={sellModalOpen}
+        onClose={() => setSellModalOpen(false)}
+        onSuccess={() => {
+          setSellModalOpen(false);
+          toast.success(`${trade.ticker} の売却注文を送信しました`);
+        }}
+        ticker={trade.ticker}
+        name={trade.name}
+        side="SELL"
+        defaultPrice={trade.takeProfitPrice ?? trade.entryPrice}
+      />
     </div>
   );
 }

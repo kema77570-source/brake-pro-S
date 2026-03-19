@@ -53,6 +53,9 @@ export function deleteTrade(id: string): void {
 export function getTradeById(id: string): TradeEntry | undefined {
   return getTrades().find((t) => t.id === id);
 }
+export function getTrade(id: string): TradeEntry | undefined {
+  return getTrades().find((t) => t.id === id);
+}
 
 // ─── Skip Log ───────────────────────────────────────────────────────────────
 export function getSkipLog(): SkipLogEntry[] {
