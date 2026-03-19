@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   BarChart3,
   Settings,
+  Heart,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { getTrades, getAlarms } from "@/lib/storage";
@@ -338,6 +339,62 @@ export default function Home() {
           >
             管理する →
           </button>
+        </div>
+
+        {/* Heart rate — full width */}
+        <div className={cn(
+          "col-span-2 glass-card rounded-xl p-4 flex items-center gap-4",
+          latestHR?.stressLevel === "critical" ? "border border-destructive/30 bg-destructive/5" :
+          latestHR?.stressLevel === "high"     ? "border border-warning/30 bg-warning/5" :
+          "border border-border/20"
+        )}>
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+            latestHR?.stressLevel === "critical" ? "bg-destructive/20" :
+            latestHR?.stressLevel === "high"     ? "bg-warning/20" :
+            latestHR?.stressLevel === "medium"   ? "bg-amber-500/20" :
+            "bg-primary/20"
+          )}>
+            <Heart className={cn(
+              "w-5 h-5",
+              latestHR?.stressLevel === "critical" ? "text-destructive animate-pulse" :
+              latestHR?.stressLevel === "high"     ? "text-warning animate-pulse" :
+              latestHR?.stressLevel === "medium"   ? "text-amber-400" :
+              latestHR ? "text-emerald-400" : "text-muted-foreground"
+            )} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className={cn(
+                "font-display font-bold text-2xl num",
+                latestHR?.stressLevel === "critical" ? "text-destructive" :
+                latestHR?.stressLevel === "high"     ? "text-warning" :
+                latestHR?.stressLevel === "medium"   ? "text-amber-400" :
+                latestHR ? "text-emerald-400" : "text-muted-foreground"
+              )}>
+                {latestHR ? latestHR.bpm : "—"}
+              </span>
+              {latestHR && <span className="text-sm text-muted-foreground font-medium">BPM</span>}
+              {latestHR && (
+                <span className={cn(
+                  "ml-auto text-[11px] font-medium px-2 py-0.5 rounded-full",
+                  latestHR.stressLevel === "critical" ? "bg-destructive/20 text-destructive" :
+                  latestHR.stressLevel === "high"     ? "bg-warning/20 text-warning" :
+                  latestHR.stressLevel === "medium"   ? "bg-amber-500/20 text-amber-400" :
+                  "bg-emerald-500/20 text-emerald-400"
+                )}>
+                  {latestHR.stressLevel === "critical" ? "危険" :
+                   latestHR.stressLevel === "high"     ? "高" :
+                   latestHR.stressLevel === "medium"   ? "中" : "正常"}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {latestHR
+                ? `心拍数 — ${new Date(latestHR.timestamp).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 計測`
+                : "心拍数 — データなし"}
+            </p>
+          </div>
         </div>
       </motion.div>
 
