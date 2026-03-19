@@ -62,8 +62,11 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* ① ヘッダーメッセージ */}
-      <div className="w-full bg-primary/10 border-b border-primary/20 px-4 lg:px-6 py-2.5">
-        <p className="text-xs text-primary/80 font-medium text-center">
+      <div className="w-full bg-primary/10 border-b border-primary/20 px-4 lg:px-6 py-6 flex items-center justify-center">
+        <p
+          className="text-primary/90 text-center leading-relaxed"
+          style={{ fontFamily: '"Yu Mincho", "游明朝", "YuMincho", "Hiragino Mincho ProN", serif', fontSize: "1.125rem" }}
+        >
           あなたを負かしているのは、相場ではなく感情かもしれない
         </p>
       </div>
