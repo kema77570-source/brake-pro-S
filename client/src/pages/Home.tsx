@@ -62,18 +62,12 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* ① ヘッダーメッセージ */}
-      <div className="w-full bg-primary/10 border-b border-primary/20 px-4 lg:px-6 py-6 flex flex-col items-center justify-center gap-2">
+      <div className="w-full bg-primary/10 border-b border-primary/20 px-4 lg:px-6 py-6 flex items-center justify-center">
         <p
           className="text-primary/90 text-center leading-relaxed"
           style={{ fontFamily: '"Yu Mincho", "游明朝", "YuMincho", "Hiragino Mincho ProN", serif', fontSize: "1.5rem" }}
         >
           あなたを負かしているのは、相場ではなく感情かもしれない
-        </p>
-        <p
-          className="text-muted-foreground/60 text-center"
-          style={{ fontFamily: '"Yu Mincho", "游明朝", "YuMincho", "Hiragino Mincho ProN", serif', fontSize: "0.875rem" }}
-        >
-          BRAKE Pro はあなたと共に成長します
         </p>
       </div>
 
