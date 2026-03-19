@@ -106,7 +106,22 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* ① 現在地 — compact header */}
+      {/* ① テロップ — scrolling ticker */}
+      <div className="w-full overflow-hidden bg-primary/10 border-b border-primary/20 py-2 select-none">
+        <div className="flex whitespace-nowrap animate-marquee">
+          {[...Array(4)].map((_, i) => (
+            <span key={i} className="mx-12 text-xs font-medium text-primary/80 tracking-wide">
+              あなたを負かしているのは、相場ではなく感情かもしれない
+              <span className="mx-6 text-primary/30">◆</span>
+              急騰を見て飛び乗る。損切りを先延ばしにする。ルール外なのに「今回だけ」と思ってしまう。
+              <span className="mx-6 text-primary/30">◆</span>
+              BRAKE Pro は、その瞬間にブレーキをかけます。
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ② 現在地 — compact header */}
       <header className="px-4 lg:px-6 pt-5 pb-3 flex items-center justify-between">
         <div>
           <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
