@@ -20,10 +20,8 @@ import {
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { getTrades, getAlarms } from "@/lib/storage";
-import { useMemo, useState, useRef, useCallback, useEffect } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-
-const HOLD_MS = 2000;
 
 export default function Home() {
   const [, navigate] = useLocation();
@@ -44,50 +42,6 @@ export default function Home() {
     ? Math.max(0, Math.round((suspendedUntil.getTime() - Date.now()) / 60000))
     : 0;
 
-  // ── Long-press CTA state ──────────────────────────────────────────────────
-  const [holding, setHolding] = useState(false);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const holdStartRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  const animateProgress = useCallback(() => {
-    if (holdStartRef.current === null) return;
-    const elapsed = Date.now() - holdStartRef.current;
-    const progress = Math.min(elapsed / HOLD_MS, 1);
-    setHoldProgress(progress);
-    if (progress >= 1) {
-      holdStartRef.current = null;
-      setHolding(false);
-      setHoldProgress(0);
-      navigate("/check");
-    } else {
-      rafRef.current = requestAnimationFrame(animateProgress);
-    }
-  }, [navigate]);
-
-  const startHold = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      e.preventDefault();
-      if (suspended) return;
-      holdStartRef.current = Date.now();
-      setHolding(true);
-      rafRef.current = requestAnimationFrame(animateProgress);
-    },
-    [suspended, animateProgress],
-  );
-
-  const endHold = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    holdStartRef.current = null;
-    setHolding(false);
-    setHoldProgress(0);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
 
   // ── Status level ──────────────────────────────────────────────────────────
   const statusLevel =
@@ -426,66 +380,38 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {/* ⑤ 主アクション — long-press CTA */}
+      {/* ⑤ 主アクション — CTA */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.24 }}
         className="px-4 lg:px-6 mt-5"
       >
-        <div className="relative overflow-hidden rounded-2xl">
-          {/* Progress fill */}
-          {holding && (
-            <div
-              className="absolute inset-y-0 left-0 bg-primary/25 pointer-events-none z-10"
-              style={{ width: `${holdProgress * 100}%`, transition: "none" }}
-            />
+        <button
+          onClick={() => !suspended && navigate("/check")}
+          disabled={suspended}
+          className={cn(
+            "w-full rounded-2xl border p-6 text-left transition-all duration-150",
+            suspended
+              ? "border-border/30 bg-card/30 opacity-50 cursor-not-allowed"
+              : "border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 active:scale-[0.99] glow-blue",
           )}
-          <button
-            onMouseDown={startHold}
-            onMouseUp={endHold}
-            onMouseLeave={endHold}
-            onTouchStart={startHold}
-            onTouchEnd={endHold}
-            onTouchCancel={endHold}
-            disabled={suspended}
-            className={cn(
-              "relative w-full rounded-2xl border p-6 text-left transition-all duration-150 select-none",
-              suspended
-                ? "border-border/30 bg-card/30 opacity-50 cursor-not-allowed"
-                : holding
-                ? "border-primary/50 bg-primary/8 scale-[0.99]"
-                : "border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 glow-blue",
-            )}
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className={cn(
-                  "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                  holding ? "bg-primary/40" : "bg-primary/20",
-                )}
-              >
-                <ShieldCheck
-                  className={cn("w-6 h-6", holding ? "text-primary" : "text-primary/80")}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-bold text-foreground text-base">
-                  {holding
-                    ? `確認中… ${Math.round(holdProgress * 100)}%`
-                    : suspended
-                    ? "停止中 — トレード不可"
-                    : "トレード前に確認する"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {suspended
-                    ? `解除まで約 ${remainingMinutes} 分`
-                    : "2秒間長押しで FOMO 診断を開始"}
-                </p>
-              </div>
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-6 h-6 text-primary/80" />
             </div>
-          </button>
-        </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-bold text-foreground text-base">
+                {suspended ? "停止中 — トレード不可" : "トレード前に確認する"}
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {suspended ? `解除まで約 ${remainingMinutes} 分` : "FOMO診断 + リスクリワード計算"}
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
+          </div>
+        </button>
       </motion.div>
 
       {/* ⑥ サブアクション — compact secondary links */}
