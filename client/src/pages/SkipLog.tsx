@@ -43,7 +43,6 @@ export default function SkipLog() {
 
   // Add form state
   const [ticker, setTicker] = useState(prefillTicker);
-  const [name, setName] = useState("");
   const [skipReason, setSkipReason] = useState("");
   const [infoSource, setInfoSource] = useState("");
   const [priceAtSkip, setPriceAtSkip] = useState("");
@@ -63,7 +62,7 @@ export default function SkipLog() {
     }
     addSkipEntry({
       ticker,
-      name: name || ticker,
+      name: ticker,
       skipReason,
       infoSource,
       priceAtSkip,
@@ -222,10 +221,6 @@ export default function SkipLog() {
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">銘柄</label>
               <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="例: NVDA, BTC" className="bg-background/50" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">銘柄名（任意）</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例: NVIDIA" className="bg-background/50" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">見送り理由</label>

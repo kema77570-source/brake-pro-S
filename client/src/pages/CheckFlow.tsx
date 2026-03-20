@@ -1126,7 +1126,14 @@ export default function CheckFlow() {
       if (neverShow) {
         localStorage.setItem(DAYTRADER_WARNING_KEY, "true");
       }
-      setPhase("rr_calc");
+      if (!proceed) {
+        // 「いいえ、見直します」→ 保有期間選択ステップに戻る
+        const holdPeriodStepIdx = STEPS_DEEP.findIndex((s) => s.key === "holdPeriod");
+        setCurrentStep(holdPeriodStepIdx);
+        setPhase("deep_questions");
+      } else {
+        setPhase("rr_calc");
+      }
     };
 
     return (
