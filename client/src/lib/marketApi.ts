@@ -2,7 +2,7 @@
 // Sources: CoinStats Fear&Greed, Alternative.me, Yahoo Finance (via proxy)
 // API Key: cAHJJyPyLX4u3fap5+F3kJhpQZZEroCdHVdq48JNzuQ=
 
-import type { MarketFearGreed, VixData, AssetHeatData } from "./types";
+import type { MarketFearGreed, VixData, AssetHeatData, FollowThroughDayData, FollowThroughSignal } from "./types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -355,6 +355,66 @@ export function invalidateCache() {
   stockFgCache = null;
   vixCache = null;
   assetsCache = null;
+  ftdCache = null;
+}
+
+// ─── Follow-Through Day ───────────────────────────────────────────────────────
+
+const FTD_INDICES = [
+  { ticker: "^GSPC", name: "S&P 500" },
+  { ticker: "^IXIC", name: "NASDAQ" },
+  { ticker: "^N225", name: "日経225" },
+];
+
+const FTD_CHANGE_THRESHOLD = 1.8;   // % rise
+const FTD_VOLUME_THRESHOLD = 20;    // % above 20-day avg
+
+let ftdCache: Cache<FollowThroughDayData> | null = null;
+
+export async function fetchFollowThroughDay(): Promise<FollowThroughDayData> {
+  if (ftdCache && Date.now() - ftdCache.ts < CACHE_TTL) {
+    return ftdCache.data;
+  }
+
+  const results = await Promise.allSettled(
+    FTD_INDICES.map(async ({ ticker, name }) => {
+      const result = await fetchYahooChart(ticker);
+      if (!result) return null;
+      const { regularMarketPrice, chartPreviousClose } = result.meta;
+      const rawVolumes = result.indicators.quote[0]?.volume ?? [];
+      const volumes = rawVolumes.filter((v): v is number => v !== null);
+
+      const changePercent =
+        chartPreviousClose > 0
+          ? Math.round(((regularMarketPrice - chartPreviousClose) / chartPreviousClose) * 10000) / 100
+          : 0;
+
+      let volumeIncreasePercent = 0;
+      if (volumes.length >= 21) {
+        const avgVol20 = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+        const latestVol = volumes[volumes.length - 1];
+        volumeIncreasePercent = avgVol20 > 0
+          ? Math.round(((latestVol - avgVol20) / avgVol20) * 100)
+          : 0;
+      }
+
+      const isFTD = changePercent >= FTD_CHANGE_THRESHOLD && volumeIncreasePercent >= FTD_VOLUME_THRESHOLD;
+
+      return { indexName: name, ticker, changePercent, volumeIncreasePercent, isFTD } satisfies FollowThroughSignal;
+    })
+  );
+
+  const signals = results
+    .map((r) => (r.status === "fulfilled" ? r.value : null))
+    .filter(Boolean) as FollowThroughSignal[];
+
+  const data: FollowThroughDayData = {
+    detectedAt: new Date().toISOString(),
+    signals,
+  };
+
+  ftdCache = { data, ts: Date.now() };
+  return data;
 }
 
 // ─── Mock fallback ────────────────────────────────────────────────────────────

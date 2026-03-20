@@ -279,6 +279,30 @@ export interface StrategyChangeRecord {
   recommendedAction: string;
 }
 
+// ─── Follow-Through Day ─────────────────────────────────────────────────────
+
+export interface FollowThroughDayData {
+  /** 検知日時 (ISO8601) */
+  detectedAt: string;
+  /** 対象指数一覧 */
+  signals: FollowThroughSignal[];
+  /** 最後に通知した日 YYYY-MM-DD — 同日2回通知防止 */
+  lastNotifiedDate?: string;
+}
+
+export interface FollowThroughSignal {
+  /** 指数名 (例: "S&P 500") */
+  indexName: string;
+  /** ティッカー (例: "^GSPC") */
+  ticker: string;
+  /** 当日上昇率 (%) */
+  changePercent: number;
+  /** 出来高増加率 (%) vs 20日平均 */
+  volumeIncreasePercent: number;
+  /** FTD成立か */
+  isFTD: boolean;
+}
+
 // ─── Market Data ────────────────────────────────────────────────────────────
 
 export interface MarketFearGreed {

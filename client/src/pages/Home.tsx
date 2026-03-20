@@ -24,7 +24,9 @@ import { getTrades, getAlarms, getDailyCondition, saveDailyCondition } from "@/l
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { saveTrade } from "@/lib/storage";
 import { cn } from "@/lib/utils";
-import type { DailyCondition } from "@/lib/types";
+import type { DailyCondition, FollowThroughDayData } from "@/lib/types";
+import { fetchFollowThroughDay } from "@/lib/marketApi";
+import { showBrowserNotification } from "@/lib/notificationService";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "00:00";
@@ -73,6 +75,85 @@ function CoolingBanner({ trade, onNavigate }: { trade: { id: string; ticker: str
   );
 }
 
+// ─── Follow-Through Day Banner ───────────────────────────────────────────────
+
+function FollowThroughDayBanner({ data }: { data: FollowThroughDayData }) {
+  const ftdSignals = data.signals.filter((s) => s.isFTD);
+  if (ftdSignals.length === 0) return null;
+
+  return (
+    <div className="w-full rounded-xl border-2 border-emerald-400/60 bg-emerald-500/10 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <TrendingUp className="w-5 h-5 text-emerald-400 shrink-0" />
+        <span className="text-sm font-bold text-emerald-300 uppercase tracking-wide">
+          フォロースルー・デー検出
+        </span>
+      </div>
+      <p className="text-xs text-emerald-200/70 leading-relaxed">
+        主要指数が大幅上昇かつ出来高急増。相場の回復シグナルとして注目してください。
+      </p>
+      <div className="space-y-2">
+        {ftdSignals.map((s) => (
+          <div
+            key={s.ticker}
+            className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2"
+          >
+            <span className="text-xs font-semibold text-emerald-200">{s.indexName}</span>
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="text-emerald-300">
+                +{s.changePercent.toFixed(2)}%
+              </span>
+              <span className="text-emerald-400/70">
+                出来高 +{s.volumeIncreasePercent}%
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── FTD hook ────────────────────────────────────────────────────────────────
+
+function useFollowThroughDay() {
+  const [ftdData, setFtdData] = useState<FollowThroughDayData | null>(null);
+  const notifiedRef = useState(() => {
+    try {
+      return localStorage.getItem("ftd_last_notified") ?? "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchFollowThroughDay().then((data) => {
+      if (cancelled) return;
+      setFtdData(data);
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const hasFTD = data.signals.some((s) => s.isFTD);
+      const alreadyNotified = notifiedRef[0] === todayStr;
+
+      if (hasFTD && !alreadyNotified) {
+        const names = data.signals.filter((s) => s.isFTD).map((s) => s.indexName).join(" / ");
+        showBrowserNotification(
+          "フォロースルー・デー",
+          `${names} が大幅上昇・出来高急増。相場回復シグナルを検出しました。`,
+        );
+        try {
+          localStorage.setItem("ftd_last_notified", todayStr);
+        } catch { /* ignore */ }
+      }
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return ftdData;
+}
+
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -86,6 +167,8 @@ export default function Home() {
 
   const [condition, setCondition] = useState<DailyCondition | null>(() => getDailyCondition(todayKey()));
   const [draftCondition, setDraftCondition] = useState<Partial<DailyCondition>>({});
+
+  const ftdData = useFollowThroughDay();
 
   // Tick every second — auto-expire cooling trades
   useEffect(() => {
@@ -520,6 +603,18 @@ export default function Home() {
           {coolingTrades.map((trade) => (
             <CoolingBanner key={trade.id} trade={trade} onNavigate={() => navigate("/trades")} />
           ))}
+        </motion.div>
+      )}
+
+      {/* フォロースルー・デー バナー */}
+      {ftdData && ftdData.signals.some((s) => s.isFTD) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.15 }}
+          className="px-4 lg:px-6 mt-4"
+        >
+          <FollowThroughDayBanner data={ftdData} />
         </motion.div>
       )}
 
