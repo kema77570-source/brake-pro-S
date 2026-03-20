@@ -190,6 +190,7 @@ export interface AppSettings {
   // FOMO thresholds
   fomoWarningThreshold: number;   // default: 50
   fomoCriticalThreshold: number;  // default: 75
+  pledgeFomoThreshold: number;    // default: 60 — ルール通りでもこのスコア以上なら誓約を表示
 
   // Risk/Reward minimum
   minRiskRewardRatio: number;     // default: 1.5
@@ -219,6 +220,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   streakNotifyEnabled: true,
   fomoWarningThreshold: 50,
   fomoCriticalThreshold: 75,
+  pledgeFomoThreshold: 60,
   minRiskRewardRatio: 1.5,
   pledges: [
     "私はSNSの熱狂だけでは買わない",

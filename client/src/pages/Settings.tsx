@@ -212,6 +212,14 @@ export default function Settings() {
 
         {/* FOMO */}
         <Section title="FOMO閾値" icon={Shield}>
+          <SettingRow label="誓約表示FOMAスコア" sub="ルール通りでもこのスコア以上なら誓約を表示（0〜100）">
+            <NumberInput
+              value={settings.pledgeFomoThreshold ?? 60}
+              onChange={(v) => updateSettings({ pledgeFomoThreshold: v })}
+              min={0}
+              max={100}
+            />
+          </SettingRow>
           <SettingRow label="FOMO警告スコア" sub="このスコア以上で警告を表示（0〜100）">
             <NumberInput
               value={settings.fomoWarningThreshold}

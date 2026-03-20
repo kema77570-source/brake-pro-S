@@ -419,7 +419,10 @@ export default function CheckFlow() {
   };
 
   const handleProceedToAudit = () => setPhase("ai_audit");
-  const isEmotional = ["mostly_emotion", "emotion"].includes(answers.mindset ?? "");
+  const pledgeFomoThreshold = settings.pledgeFomoThreshold ?? 60;
+  const isEmotional =
+    ["mostly_emotion", "emotion"].includes(answers.mindset ?? "") ||
+    (fomoResult !== null && fomoResult.totalScore >= pledgeFomoThreshold);
   const handleProceedToPledge = () => setPhase(isEmotional ? "pledge" : "order_confirm");
 
   const allPledgesChecked = checkedPledges.every(Boolean) && rrPledgeChecked;
@@ -452,7 +455,7 @@ export default function CheckFlow() {
       ticker: answers.ticker ?? "",
       name: answers.name ?? answers.ticker ?? "",
       direction: answers.direction ?? "long",
-      status: orderType === "demo" ? "planning" : "planning",
+      status: orderType === "demo" ? "planning" : "active",
       entryPrice: entry,
       stopLossPrice: sl,
       takeProfitPrice: tp,
