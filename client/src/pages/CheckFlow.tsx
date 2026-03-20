@@ -419,7 +419,8 @@ export default function CheckFlow() {
   };
 
   const handleProceedToAudit = () => setPhase("ai_audit");
-  const handleProceedToPledge = () => setPhase("pledge");
+  const isEmotional = ["mostly_emotion", "emotion"].includes(answers.mindset ?? "");
+  const handleProceedToPledge = () => setPhase(isEmotional ? "pledge" : "order_confirm");
 
   const allPledgesChecked = checkedPledges.every(Boolean) && rrPledgeChecked;
 
@@ -1134,7 +1135,7 @@ export default function CheckFlow() {
           </div>
 
           <Button onClick={handleProceedToPledge} className="w-full bg-primary hover:bg-primary/90">
-            誓約へ進む
+            {isEmotional ? "誓約へ進む" : "発注確認へ進む"}
             <ArrowRight className="ml-2 w-4 h-4" />
           </Button>
         </div>
