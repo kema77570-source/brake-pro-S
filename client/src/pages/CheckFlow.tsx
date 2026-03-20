@@ -1047,7 +1047,18 @@ export default function CheckFlow() {
             {/* Header */}
             <div className="flex items-center justify-between mb-10">
               <button
-                onClick={() => fomoQuizStep > 0 ? setFomoQuizStep((s) => s - 1) : setPhase("questions")}
+                onClick={() => {
+                  if (fomoQuizStep > 0) {
+                    setFomoQuizStep((s) => s - 1);
+                  } else {
+                    // 長期/中期はstopLossステップをスキップしているためholdPeriodへ戻る
+                    const backStep = isLongTermHold()
+                      ? STEPS_DEEP.length - 2
+                      : STEPS_DEEP.length - 1;
+                    setCurrentStep(backStep);
+                    setPhase("deep_questions");
+                  }
+                }}
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft className="w-4 h-4" />戻る
