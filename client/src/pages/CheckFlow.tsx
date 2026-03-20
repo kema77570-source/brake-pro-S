@@ -455,7 +455,14 @@ export default function CheckFlow() {
       ticker: answers.ticker ?? "",
       name: answers.name ?? answers.ticker ?? "",
       direction: answers.direction ?? "long",
-      status: orderType === "demo" ? "planning" : "active",
+      status: orderType === "demo"
+        ? "planning"
+        : coolingMinutes > 0
+        ? "cooling"
+        : "active",
+      coolingUntil: orderType !== "demo" && coolingMinutes > 0
+        ? new Date(Date.now() + coolingMinutes * 60 * 1000).toISOString()
+        : undefined,
       entryPrice: entry,
       stopLossPrice: sl,
       takeProfitPrice: tp,

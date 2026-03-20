@@ -1,10 +1,10 @@
 // BRAKE Pro — TradeLog Page
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Plus, TrendingUp, TrendingDown, CheckCircle, XCircle,
-  Clock, ChevronRight, Trash2, Send,
+  Clock, ChevronRight, Trash2, Send, Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,36 +16,84 @@ import { isOverDeadline, hoursUntilDeadline } from "@/lib/holdingPeriod";
 import { toast } from "sonner";
 import OrderFormModal from "@/components/OrderFormModal";
 
-type FilterType = "all" | "planning" | "active" | "closed";
+type TabType = "cooling" | "active";
 
-const STATUS_LABELS: Record<string, string> = {
-  planning: "計画中",
-  active: "保有中",
-  closed: "決済済",
-};
 const STATUS_COLORS: Record<string, string> = {
-  planning: "text-primary bg-primary/10 border-primary/20",
-  active: "text-warning bg-warning/10 border-warning/20",
-  closed: "text-muted-foreground bg-muted/30 border-border/20",
+  cooling: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  active:  "text-warning bg-warning/10 border-warning/20",
+  closed:  "text-muted-foreground bg-muted/30 border-border/20",
 };
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function CoolingTimer({ coolingUntil }: { coolingUntil: string }) {
+  const [remaining, setRemaining] = useState(() => new Date(coolingUntil).getTime() - Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining(new Date(coolingUntil).getTime() - Date.now());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [coolingUntil]);
+
+  const pct = Math.max(0, Math.min(100, (remaining / (new Date(coolingUntil).getTime() - Date.now() + remaining)) * 100));
+
+  if (remaining <= 0) return <span className="text-emerald-400 text-xs font-medium">冷却完了</span>;
+
+  return (
+    <div className="flex items-center gap-2">
+      <Timer className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+      <span className="font-mono text-blue-400 font-bold text-sm">{formatCountdown(remaining)}</span>
+      <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden min-w-[60px]">
+        <div
+          className="h-full bg-blue-400 rounded-full transition-none"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function TradeLog() {
   const [, navigate] = useLocation();
   const { settings, refreshLossStreak, checkSuspension } = useApp();
   const holdingLimits = settings.holdingLimits ?? DEFAULT_HOLDING_LIMITS;
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [tab, setTab] = useState<TabType>("cooling");
   const [trades, setTrades] = useState<TradeEntry[]>(() => getTrades());
   const [sellTarget, setSellTarget] = useState<TradeEntry | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Tick every second to auto-expire cooling trades
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNow(Date.now());
+      // Auto-promote expired cooling trades to active
+      const current = getTrades();
+      let changed = false;
+      current.forEach((t) => {
+        if (t.status === "cooling" && t.coolingUntil && new Date(t.coolingUntil).getTime() <= Date.now()) {
+          saveTrade({ ...t, status: "active", entryTime: t.entryTime ?? new Date().toISOString() });
+          changed = true;
+        }
+      });
+      if (changed) setTrades(getTrades());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const refresh = useCallback(() => setTrades(getTrades()), []);
 
-  const filtered = trades.filter((t) => filter === "all" || t.status === filter);
-
-  const handleActivate = (trade: TradeEntry) => {
-    saveTrade({ ...trade, status: "active", entryTime: new Date().toISOString() });
-    refresh();
-    toast.success(`${trade.ticker} をアクティブに変更しました`);
-  };
+  const coolingTrades = trades.filter((t) => t.status === "cooling");
+  const activeTrades  = trades.filter((t) => t.status === "active");
+  const displayed     = tab === "cooling" ? coolingTrades : activeTrades;
 
   const handleClose = (trade: TradeEntry, result: "win" | "loss" | "breakeven") => {
     saveTrade({ ...trade, status: "closed", result, exitTime: new Date().toISOString() });
@@ -64,75 +112,73 @@ export default function TradeLog() {
     toast.info("トレードを削除しました");
   };
 
-  const totalPnL = trades
-    .filter((t) => t.status === "closed" && t.result)
-    .reduce((sum, t) => {
-      if (t.result === "win") return sum + (t.rewardAmount ?? 0);
-      if (t.result === "loss") return sum - (t.riskAmount ?? 0);
-      return sum;
-    }, 0);
+  const handlePromote = (trade: TradeEntry) => {
+    saveTrade({ ...trade, status: "active", entryTime: new Date().toISOString(), coolingUntil: undefined });
+    refresh();
+    toast.success(`${trade.ticker} を保有銘柄に移動しました`);
+  };
 
   return (
     <div className="min-h-screen px-4 py-8 lg:px-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">トレード記録</h1>
-          <p className="text-sm text-muted-foreground mt-1">{trades.length}件のトレード</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            冷却中 {coolingTrades.length}件 / 保有中 {activeTrades.length}件
+          </p>
         </div>
         <Button onClick={() => navigate("/check")} className="gap-2 bg-primary hover:bg-primary/90">
           <Plus className="w-4 h-4" />新規チェック
         </Button>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {[
-          { label: "勝ち", value: trades.filter((t) => t.result === "win").length, color: "text-success" },
-          { label: "負け", value: trades.filter((t) => t.result === "loss").length, color: "text-destructive" },
-          { label: "損益合計", value: `${totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(0)}`, color: totalPnL >= 0 ? "text-success" : "text-destructive" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-border/30 bg-card/50 p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
-            <p className={cn("font-display font-bold text-xl num", s.color)}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {(["all", "planning", "active", "closed"] as FilterType[]).map((f) => (
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6">
+        {([
+          { key: "cooling", label: "冷却期間中", count: coolingTrades.length, color: "text-blue-400 border-blue-500/40 bg-blue-500/10" },
+          { key: "active",  label: "保有銘柄",   count: activeTrades.length,  color: "text-warning border-warning/40 bg-warning/10" },
+        ] as { key: TabType; label: string; count: number; color: string }[]).map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={t.key}
+            onClick={() => setTab(t.key)}
             className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all border",
-              filter === f
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border/30 bg-card/50 text-muted-foreground hover:border-border/60"
+              "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+              tab === t.key ? t.color : "border-border/30 bg-card/50 text-muted-foreground hover:border-border/60"
             )}
           >
-            {f === "all" ? "すべて" : STATUS_LABELS[f]}
+            {t.label}
+            <span className={cn(
+              "text-[11px] px-1.5 py-0.5 rounded-full font-bold",
+              tab === t.key ? "bg-white/10" : "bg-white/5"
+            )}>
+              {t.count}
+            </span>
           </button>
         ))}
       </div>
 
       {/* Trade List */}
-      {filtered.length === 0 ? (
+      {displayed.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-muted-foreground text-sm">トレードがありません</p>
+          <p className="text-muted-foreground text-sm">
+            {tab === "cooling" ? "冷却期間中のトレードはありません" : "保有中のトレードはありません"}
+          </p>
           <Button variant="outline" onClick={() => navigate("/check")} className="mt-4">
-            最初のチェックを始める
+            新規チェックを始める
           </Button>
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((trade, i) => (
+          {displayed.map((trade, i) => (
             <motion.div
               key={trade.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="rounded-xl border border-border/30 bg-card/50 p-4"
+              className={cn(
+                "rounded-xl border bg-card/50 p-4",
+                trade.status === "cooling" ? "border-blue-500/20" : "border-border/30"
+              )}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -154,7 +200,7 @@ export default function TradeLog() {
                     <span className={cn(
                       "text-[10px] px-1.5 py-0.5 rounded border font-medium",
                       trade.orderType === "moomoo" ? "text-primary bg-primary/10 border-primary/20" :
-                      trade.orderType === "demo" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                      trade.orderType === "demo"   ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
                       "text-muted-foreground bg-muted/20 border-border/20"
                     )}>
                       {trade.orderType === "moomoo" ? "📱moomoo" : trade.orderType === "demo" ? "🧪デモ" : "🏦他社"}
@@ -162,17 +208,22 @@ export default function TradeLog() {
                   )}
                   <span className={cn(
                     "text-xs px-2 py-1 rounded-full border font-medium",
-                    trade.result === "win" ? "text-success bg-success/10 border-success/20" :
-                    trade.result === "loss" ? "text-destructive bg-destructive/10 border-destructive/20" :
                     STATUS_COLORS[trade.status]
                   )}>
-                    {trade.result === "win" ? "勝ち" : trade.result === "loss" ? "負け" : STATUS_LABELS[trade.status]}
+                    {trade.status === "cooling" ? "冷却期間中" : "保有中"}
                   </span>
                 </div>
               </div>
 
-              {/* Deadline indicator */}
-              {trade.status !== "closed" && (() => {
+              {/* Cooling timer */}
+              {trade.status === "cooling" && trade.coolingUntil && (
+                <div className="mb-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <CoolingTimer coolingUntil={trade.coolingUntil} />
+                </div>
+              )}
+
+              {/* Holding deadline indicator */}
+              {trade.status === "active" && (() => {
                 const overdue = isOverDeadline(trade, holdingLimits);
                 const hrs = hoursUntilDeadline(trade, holdingLimits);
                 if (!overdue && (hrs === null || hrs > 4)) return null;
@@ -219,10 +270,15 @@ export default function TradeLog() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2">
-                {trade.status === "planning" && (
-                  <Button size="sm" variant="outline" onClick={() => handleActivate(trade)} className="text-xs">
-                    <Clock className="w-3 h-3 mr-1" />保有開始
+              <div className="flex gap-2 flex-wrap">
+                {trade.status === "cooling" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handlePromote(trade)}
+                    className="text-xs text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                  >
+                    <Clock className="w-3 h-3 mr-1" />今すぐ保有開始
                   </Button>
                 )}
                 {trade.status === "active" && (

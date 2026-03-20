@@ -5,7 +5,7 @@
 // ─── Trade Entry ────────────────────────────────────────────────────────────
 
 export type TradeDirection = "long" | "short";
-export type TradeStatus = "planning" | "active" | "closed" | "skipped";
+export type TradeStatus = "planning" | "cooling" | "active" | "closed" | "skipped";
 export type TradeResult = "win" | "loss" | "breakeven" | "pending";
 
 export interface TradeEntry {
@@ -37,6 +37,7 @@ export interface TradeEntry {
   entryTime?: string;        // actual entry timestamp
   exitTime?: string;         // actual exit timestamp
   holdDeadlineNotified?: boolean;
+  coolingUntil?: string;     // ISO timestamp — cooling period expires at this time
 
   // FOMO analysis
   fomoScore: number;         // 0-100

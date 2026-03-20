@@ -17,20 +17,87 @@ import {
   BarChart3,
   Settings,
   Heart,
+  Timer,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { getTrades, getAlarms } from "@/lib/storage";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { saveTrade } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function CoolingBanner({ trade, onNavigate }: { trade: { id: string; ticker: string; coolingUntil?: string }; onNavigate: () => void }) {
+  const [remaining, setRemaining] = useState(() =>
+    trade.coolingUntil ? new Date(trade.coolingUntil).getTime() - Date.now() : 0
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining(trade.coolingUntil ? new Date(trade.coolingUntil).getTime() - Date.now() : 0);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [trade.coolingUntil]);
+
+  return (
+    <button
+      onClick={onNavigate}
+      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/15 transition-colors text-left"
+    >
+      <Timer className="w-4 h-4 text-blue-400 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-blue-300 font-medium">{trade.ticker} — 冷却期間中</p>
+        <div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden">
+          <div
+            className="h-full bg-blue-400 rounded-full"
+            style={{
+              width: `${Math.max(0, Math.min(100, (remaining / (trade.coolingUntil ? new Date(trade.coolingUntil).getTime() - (Date.now() - remaining + remaining) : 1)) * 100))}%`,
+              transition: "none",
+            }}
+          />
+        </div>
+      </div>
+      <span className="font-mono text-blue-400 font-bold text-base shrink-0">
+        {formatCountdown(remaining)}
+      </span>
+    </button>
+  );
+}
 
 export default function Home() {
   const [, navigate] = useLocation();
   const { suspended, suspendedUntil, lossStreak, hrWarning, latestHR, settings } = useApp();
 
-  const trades = useMemo(() => getTrades(), []);
+  const [trades, setTrades] = useState(() => getTrades());
   const alarms = useMemo(() => getAlarms().filter((a) => a.status === "active"), []);
 
-  const activeTrades = trades.filter((t) => t.status === "active").length;
+  // Tick every second — auto-expire cooling trades
+  useEffect(() => {
+    const id = setInterval(() => {
+      const current = getTrades();
+      let changed = false;
+      current.forEach((t) => {
+        if (t.status === "cooling" && t.coolingUntil && new Date(t.coolingUntil).getTime() <= Date.now()) {
+          saveTrade({ ...t, status: "active", entryTime: t.entryTime ?? new Date().toISOString() });
+          changed = true;
+        }
+      });
+      if (changed) setTrades(getTrades());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const coolingTrades = trades.filter((t) => t.status === "cooling" && t.coolingUntil);
+
+  const activeTrades = trades.filter((t) => t.status === "active" || t.status === "cooling").length;
   const recentWins = trades.filter((t) => t.result === "win").length;
   const recentLosses = trades.filter((t) => t.result === "loss").length;
   const winRate =
@@ -346,6 +413,20 @@ export default function Home() {
           </div>
         </div>
       </motion.div>
+
+      {/* 冷却期間中タイマー */}
+      {coolingTrades.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.14 }}
+          className="px-4 lg:px-6 mt-4 space-y-2"
+        >
+          {coolingTrades.map((trade) => (
+            <CoolingBanner key={trade.id} trade={trade} onNavigate={() => navigate("/trades")} />
+          ))}
+        </motion.div>
+      )}
 
       {/* ④ 判断基準 — trading rules reminder */}
       <motion.div
