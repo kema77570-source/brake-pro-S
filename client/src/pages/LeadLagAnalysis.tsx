@@ -5,7 +5,7 @@ import {
   TrendingUp, RefreshCw, Settings2,
   BarChart3, Activity, ArrowUpRight, ArrowDownRight,
   Minus, Info, Zap, Globe, Sun, Calendar,
-  DollarSign,
+  DollarSign, WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -719,7 +719,8 @@ export default function LeadLagAnalysis() {
         { params: { L, lam, K, q }, timeout: 90000 });
       setSignal(res.data);
     } catch (e: any) {
-      setError(e?.response?.data?.detail || "分析サーバーに接続できません。lead_lag_api.py を起動してください。");
+      // lead_lag_api.py (python server/lead_lag/lead_lag_api.py) が未起動の場合にここに到達する
+      setError(e?.response?.data?.detail || "分析サーバーに接続できません");
     } finally { setSigLoading(false); }
   }, [L, lam, K, q]);
 
@@ -829,9 +830,20 @@ export default function LeadLagAnalysis() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 p-3 bg-destructive/15 border border-destructive/30 rounded-xl text-xs text-destructive flex items-start gap-2">
-          <Info className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 p-6 text-center mb-4">
+          <WifiOff className="w-10 h-10 text-amber-400/50 mx-auto mb-3" />
+          <p className="text-sm font-medium text-amber-300 mb-1">リードラグ分析サーバーが未起動です</p>
+          <p className="text-xs text-muted-foreground mb-4">
+            MooMoo証券と接続するか、分析サーバーを起動してください
+          </p>
+          <div className="flex flex-col gap-2 max-w-xs mx-auto">
+            <a
+              href="/connect"
+              className="px-4 py-2.5 rounded-lg bg-primary/15 border border-primary/30 text-primary text-xs font-medium hover:bg-primary/25 transition-colors"
+            >
+              MooMoo接続設定へ
+            </a>
+          </div>
         </div>
       )}
 

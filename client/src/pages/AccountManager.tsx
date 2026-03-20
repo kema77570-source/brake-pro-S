@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Wallet, Plus, Trash2, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle,
+  Wifi, WifiOff, RefreshCw, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,8 +30,30 @@ export default function AccountManager() {
   const [type, setType] = useState<"deposit" | "withdrawal">("deposit");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [moomooSyncing, setMoomooSyncing] = useState(false);
+  const [moomooStatus, setMoomooStatus] = useState<"idle" | "success" | "error" | "offline">("idle");
 
   const refresh = () => setTransactions(getTransactions());
+
+  const syncFromMooMoo = async () => {
+    setMoomooSyncing(true);
+    setMoomooStatus("idle");
+    try {
+      const res = await fetch("/api/moomoo/fund-info");
+      if (!res.ok) throw new Error("offline");
+      const data = await res.json();
+      // If we got fund data, record as a snapshot note
+      if (data.cash !== undefined) {
+        const note = `MooMoo残高スナップショット: ¥${Number(data.cash).toLocaleString()}`;
+        toast.success(note);
+        setMoomooStatus("success");
+      }
+    } catch {
+      setMoomooStatus("offline");
+      toast.error("moomoo OpenDに接続できません。moomoo接続設定を確認してください。");
+    }
+    setMoomooSyncing(false);
+  };
 
   const handleAdd = () => {
     const num = parseFloat(amount.replace(/,/g, ""));
@@ -97,6 +120,35 @@ export default function AccountManager() {
 
   return (
     <div className="min-h-screen px-4 py-8 lg:px-8">
+      {/* MooMoo sync banner */}
+      <div className="rounded-xl border border-border/30 bg-card/50 p-4 mb-6 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            {moomooStatus === "offline" ? (
+              <WifiOff className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Wifi className="w-4 h-4 text-primary" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">MooMoo証券と連動</p>
+            <p className="text-xs text-muted-foreground">
+              {moomooStatus === "success" ? "同期しました" :
+               moomooStatus === "offline" ? "moomoo OpenDが起動していません" :
+               "moomoo OpenDが起動中の場合、残高を取得できます"}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={syncFromMooMoo}
+          disabled={moomooSyncing}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-primary/15 border border-primary/30 text-primary rounded-lg hover:bg-primary/25 disabled:opacity-50 transition-colors shrink-0"
+        >
+          {moomooSyncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+          同期する
+        </button>
+      </div>
+
       <div className="flex items-center gap-3 mb-6">
         <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
           <Wallet className="w-5 h-5 text-primary" />

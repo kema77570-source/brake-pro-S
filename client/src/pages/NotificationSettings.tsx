@@ -1,7 +1,7 @@
 // BRAKE Pro — Notification Settings Page (port 8002)
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Bell, Plus, Trash2, Play, Clock, Wifi, WifiOff,
+  Bell, Plus, Trash2, Clock, Wifi, WifiOff,
   RefreshCw, CheckCircle, AlertCircle, Settings2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,6 @@ export default function NotificationSettings() {
   const [permission, setPermission] = useState<NotificationPermission>(getPermission());
   const [loading, setLoading] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
-  const [triggerLoading, setTriggerLoading] = useState<string | null>(null);
 
   // New watchlist item form
   const [newCode, setNewCode] = useState('');
@@ -114,14 +113,6 @@ export default function NotificationSettings() {
       }
     } catch { /* offline */ }
     setLoading(false);
-  }
-
-  async function triggerNow(type: 'morning' | 'evening') {
-    setTriggerLoading(type);
-    try {
-      await fetch(`${API}/trigger/${type}`, { method: 'POST' });
-    } catch { /* offline */ }
-    setTimeout(() => setTriggerLoading(null), 1500);
   }
 
   async function handlePermission() {
@@ -264,41 +255,6 @@ export default function NotificationSettings() {
           </button>
           {saveMsg && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" />{saveMsg}</span>}
         </div>
-      </div>
-
-      {/* Test buttons */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <p className="text-sm font-semibold text-foreground">手動テスト</p>
-        <p className="text-xs text-muted-foreground">今すぐ分析を実行して通知を確認できます</p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => triggerNow('morning')}
-            disabled={!connected || triggerLoading === 'morning'}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/15 border border-blue-500/20 text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-500/25 disabled:opacity-40 transition-colors"
-          >
-            {triggerLoading === 'morning'
-              ? <RefreshCw className="w-3 h-3 animate-spin" />
-              : <Play className="w-3 h-3" />
-            }
-            🌅 朝レポートを今すぐ実行
-          </button>
-          <button
-            onClick={() => triggerNow('evening')}
-            disabled={!connected || triggerLoading === 'evening'}
-            className="flex items-center gap-1.5 px-3 py-2 bg-violet-500/15 border border-violet-500/20 text-violet-400 rounded-lg text-xs font-medium hover:bg-violet-500/25 disabled:opacity-40 transition-colors"
-          >
-            {triggerLoading === 'evening'
-              ? <RefreshCw className="w-3 h-3 animate-spin" />
-              : <Play className="w-3 h-3" />
-            }
-            🌙 夜レポートを今すぐ実行
-          </button>
-        </div>
-        {!connected && (
-          <p className="text-[10px] text-muted-foreground">
-            ※ スケジューラーを起動してください: <code className="bg-muted px-1 rounded">python server/notification_scheduler.py</code>
-          </p>
-        )}
       </div>
 
       {/* Watchlist */}

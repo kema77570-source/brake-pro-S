@@ -16,7 +16,7 @@ import { isOverDeadline, hoursUntilDeadline } from "@/lib/holdingPeriod";
 import { toast } from "sonner";
 import OrderFormModal from "@/components/OrderFormModal";
 
-type TabType = "cooling" | "active";
+type TabType = "cooling" | "active" | "history";
 
 const STATUS_COLORS: Record<string, string> = {
   cooling: "text-blue-400 bg-blue-500/10 border-blue-500/20",
@@ -100,6 +100,70 @@ function CoolingTimer({
   );
 }
 
+function MemoField({ tradeId, initialMemo }: { tradeId: string; initialMemo: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [memo, setMemo] = useState(initialMemo);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = () => {
+    const trades = getTrades();
+    const trade = trades.find(t => t.id === tradeId);
+    if (trade) {
+      saveTrade({ ...trade, journalNote: memo });
+    }
+    setSaving(true);
+    setTimeout(() => setSaving(false), 800);
+  };
+
+  if (!expanded && !memo) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+      >
+        <Plus className="w-3 h-3" />メモを追加
+      </button>
+    );
+  }
+
+  if (!expanded && memo) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="text-xs text-left text-muted-foreground hover:text-foreground transition-colors italic border-l-2 border-primary/30 pl-2 w-full"
+      >
+        {memo}
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        value={memo}
+        onChange={(e) => setMemo(e.target.value)}
+        placeholder="メモを入力…"
+        autoFocus
+        className="w-full text-xs bg-background/50 border border-border/40 rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground resize-none min-h-[60px] focus:outline-none focus:border-primary/40"
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          className="text-xs px-3 py-1.5 bg-primary/15 border border-primary/30 text-primary rounded-lg hover:bg-primary/25 transition-colors"
+        >
+          {saving ? "保存中…" : "保存"}
+        </button>
+        <button
+          onClick={() => setExpanded(false)}
+          className="text-xs px-3 py-1.5 border border-border/30 text-muted-foreground rounded-lg hover:bg-card transition-colors"
+        >
+          閉じる
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TradeLog() {
   const [, navigate] = useLocation();
   const { settings, refreshLossStreak, checkSuspension } = useApp();
@@ -132,7 +196,8 @@ export default function TradeLog() {
 
   const coolingTrades = trades.filter((t) => t.status === "cooling");
   const activeTrades  = trades.filter((t) => t.status === "active");
-  const displayed     = tab === "cooling" ? coolingTrades : activeTrades;
+  const closedTrades  = trades.filter((t) => t.status === "closed" || t.status === "skipped");
+  const displayed     = tab === "cooling" ? coolingTrades : tab === "active" ? activeTrades : closedTrades;
 
   const handleClose = (trade: TradeEntry, result: "win" | "loss" | "breakeven") => {
     saveTrade({ ...trade, status: "closed", result, exitTime: new Date().toISOString() });
@@ -199,6 +264,7 @@ export default function TradeLog() {
         {([
           { key: "cooling", label: "冷却期間中", count: coolingTrades.length, color: "text-blue-400 border-blue-500/40 bg-blue-500/10" },
           { key: "active",  label: "保有銘柄",   count: activeTrades.length,  color: "text-warning border-warning/40 bg-warning/10" },
+          { key: "history", label: "履歴",       count: closedTrades.length,  color: "text-muted-foreground border-border/40 bg-card/50" },
         ] as { key: TabType; label: string; count: number; color: string }[]).map((t) => (
           <button
             key={t.key}
@@ -220,214 +286,323 @@ export default function TradeLog() {
       </div>
 
       {/* Trade List */}
-      {displayed.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-muted-foreground text-sm">
-            {tab === "cooling" ? "冷却期間中のトレードはありません" : "保有中のトレードはありません"}
-          </p>
-          <Button variant="outline" onClick={() => navigate("/check")} className="mt-4">
-            新規チェックを始める
-          </Button>
-        </div>
+      {tab === "history" ? (
+        displayed.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground text-sm">決済済みのトレードはありません</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {displayed.map((trade, i) => {
+              const isWin = trade.result === "win";
+              const isLoss = trade.result === "loss";
+              return (
+                <motion.div
+                  key={trade.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="rounded-xl border border-border/30 bg-card/50 p-4"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center",
+                        trade.direction === "long" ? "bg-success/10" : "bg-destructive/10"
+                      )}>
+                        {trade.direction === "long"
+                          ? <TrendingUp className="w-4 h-4 text-success" />
+                          : <TrendingDown className="w-4 h-4 text-destructive" />}
+                      </div>
+                      <div>
+                        <p className="font-display font-bold text-foreground">{trade.ticker}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(trade.createdAt).toLocaleDateString("ja-JP")}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {trade.result && (
+                        <span className={cn(
+                          "text-xs px-2 py-1 rounded-full border font-medium",
+                          isWin ? "text-success border-success/30 bg-success/10" :
+                          isLoss ? "text-destructive border-destructive/30 bg-destructive/10" :
+                          "text-muted-foreground border-border/30 bg-card/50"
+                        )}>
+                          {isWin ? "✓ 勝ち" : isLoss ? "✗ 負け" : "トントン"}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleDelete(trade.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Price performance */}
+                  <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+                    <div>
+                      <p className="text-muted-foreground">エントリー</p>
+                      <p className="font-mono font-medium text-foreground">{trade.entryPrice?.toLocaleString() ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">損切りライン</p>
+                      <p className="font-mono font-medium text-destructive">{trade.stopLossPrice?.toLocaleString() ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">実際の決済</p>
+                      <p className={cn("font-mono font-medium", isWin ? "text-success" : isLoss ? "text-destructive" : "text-foreground")}>
+                        {trade.actualExitPrice?.toLocaleString() ?? "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* PnL */}
+                  {(trade.pnl !== undefined || trade.pnlPercent !== undefined) && (
+                    <div className="flex items-center gap-3 text-xs mb-3">
+                      {trade.pnl !== undefined && (
+                        <span className={cn("font-mono font-bold", trade.pnl >= 0 ? "text-success" : "text-destructive")}>
+                          {trade.pnl >= 0 ? "+" : ""}¥{trade.pnl.toLocaleString()}
+                        </span>
+                      )}
+                      {trade.pnlPercent !== undefined && (
+                        <span className={cn("font-mono", trade.pnlPercent >= 0 ? "text-success" : "text-destructive")}>
+                          {trade.pnlPercent >= 0 ? "+" : ""}{trade.pnlPercent}%
+                        </span>
+                      )}
+                      {trade.riskRewardRatio && (
+                        <span className="text-muted-foreground font-mono">RR: 1:{trade.riskRewardRatio}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Memo */}
+                  <MemoField tradeId={trade.id} initialMemo={trade.journalNote ?? ""} />
+
+                  {/* Reflection */}
+                  {trade.reflection && (
+                    <p className="text-xs text-muted-foreground italic border-l-2 border-border/30 pl-3 mt-2">{trade.reflection}</p>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        )
       ) : (
-        <div className="space-y-3">
-          {displayed.map((trade, i) => (
-            <motion.div
-              key={trade.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={cn(
-                "rounded-xl border bg-card/50 p-4",
-                trade.status === "cooling" ? "border-blue-500/20" : "border-border/30"
-              )}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                    trade.direction === "long" ? "bg-success/10" : "bg-destructive/10"
-                  )}>
-                    {trade.direction === "long"
-                      ? <TrendingUp className="w-4 h-4 text-success" />
-                      : <TrendingDown className="w-4 h-4 text-destructive" />}
+        displayed.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground text-sm">
+              {tab === "cooling" ? "冷却期間中のトレードはありません" : "保有中のトレードはありません"}
+            </p>
+            <Button variant="outline" onClick={() => navigate("/check")} className="mt-4">
+              新規チェックを始める
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {displayed.map((trade, i) => (
+              <motion.div
+                key={trade.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className={cn(
+                  "rounded-xl border bg-card/50 p-4",
+                  trade.status === "cooling" ? "border-blue-500/20" : "border-border/30"
+                )}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center",
+                      trade.direction === "long" ? "bg-success/10" : "bg-destructive/10"
+                    )}>
+                      {trade.direction === "long"
+                        ? <TrendingUp className="w-4 h-4 text-success" />
+                        : <TrendingDown className="w-4 h-4 text-destructive" />}
+                    </div>
+                    <div>
+                      <p className="font-display font-bold text-foreground">{trade.ticker}</p>
+                      <p className="text-xs text-muted-foreground">{trade.name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {trade.orderType && (
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded border font-medium",
+                        trade.orderType === "moomoo" ? "text-primary bg-primary/10 border-primary/20" :
+                        trade.orderType === "demo"   ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                        "text-muted-foreground bg-muted/20 border-border/20"
+                      )}>
+                        {trade.orderType === "moomoo" ? "📱moomoo" : trade.orderType === "demo" ? "🧪デモ" : "🏦他社"}
+                      </span>
+                    )}
+                    <span className={cn(
+                      "text-xs px-2 py-1 rounded-full border font-medium",
+                      STATUS_COLORS[trade.status]
+                    )}>
+                      {trade.status === "cooling" ? "冷却期間中" : "保有中"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Cooling timer */}
+                {trade.status === "cooling" && trade.coolingUntil && (
+                  <div className="mb-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <CoolingTimer
+                      coolingUntil={trade.coolingUntil}
+                      onExtend={() => handleExtendCooling(trade)}
+                    />
+                  </div>
+                )}
+
+                {/* Stop-loss confirm dialog */}
+                {trade.status === "active" && trade.stopLossPrice && slConfirmId === trade.id && (
+                  <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-2">
+                    <p className="text-xs text-destructive font-medium flex items-center gap-1.5">
+                      <AlertOctagon className="w-3.5 h-3.5" />
+                      損切りラインに達しましたか？（設定: {trade.stopLossPrice.toLocaleString()}）
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSlExecute(trade)}
+                        className="flex-1 text-xs py-1.5 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30 transition-colors font-medium"
+                      >
+                        実行した（損切り決済）
+                      </button>
+                      <button
+                        onClick={() => handleSlDelay(trade)}
+                        className="flex-1 text-xs py-1.5 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground hover:bg-muted/50 transition-colors font-medium"
+                      >
+                        まだ保留
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setSlConfirmId(null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                )}
+
+                {/* Holding deadline indicator */}
+                {trade.status === "active" && (() => {
+                  const overdue = isOverDeadline(trade, holdingLimits);
+                  const hrs = hoursUntilDeadline(trade, holdingLimits);
+                  if (!overdue && (hrs === null || hrs > 4)) return null;
+                  return (
+                    <div className={cn(
+                      "flex items-center gap-1.5 text-[10px] mb-2 px-1",
+                      overdue ? "text-destructive" : "text-amber-400"
+                    )}>
+                      <Clock className="w-3 h-3" />
+                      {overdue ? "期限超過 — 戦略を確認してください" : `期限まであと${Math.round(hrs!)}時間`}
+                    </div>
+                  );
+                })()}
+
+                <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+                  <div>
+                    <p className="text-muted-foreground">エントリー</p>
+                    <p className="font-mono font-medium text-foreground">{trade.entryPrice?.toLocaleString() ?? "—"}</p>
                   </div>
                   <div>
-                    <p className="font-display font-bold text-foreground">{trade.ticker}</p>
-                    <p className="text-xs text-muted-foreground">{trade.name}</p>
+                    <p className="text-muted-foreground">損切り</p>
+                    <p className="font-mono font-medium text-destructive">{trade.stopLossPrice?.toLocaleString() ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">利確</p>
+                    <p className="font-mono font-medium text-success">{trade.takeProfitPrice?.toLocaleString() ?? "—"}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                  {trade.orderType && (
+
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                  {trade.riskRewardRatio && (
+                    <span className="font-mono">RR: 1:{trade.riskRewardRatio}</span>
+                  )}
+                  {trade.fomoScore !== undefined && (
                     <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded border font-medium",
-                      trade.orderType === "moomoo" ? "text-primary bg-primary/10 border-primary/20" :
-                      trade.orderType === "demo"   ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-                      "text-muted-foreground bg-muted/20 border-border/20"
+                      "px-2 py-0.5 rounded-full",
+                      trade.fomoScore >= 70 ? "bg-destructive/10 text-destructive" :
+                      trade.fomoScore >= 50 ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
                     )}>
-                      {trade.orderType === "moomoo" ? "📱moomoo" : trade.orderType === "demo" ? "🧪デモ" : "🏦他社"}
+                      FOMO: {trade.fomoScore}
                     </span>
                   )}
-                  <span className={cn(
-                    "text-xs px-2 py-1 rounded-full border font-medium",
-                    STATUS_COLORS[trade.status]
-                  )}>
-                    {trade.status === "cooling" ? "冷却期間中" : "保有中"}
-                  </span>
+                  <span>{new Date(trade.createdAt).toLocaleDateString("ja-JP")}</span>
                 </div>
-              </div>
 
-              {/* Cooling timer */}
-              {trade.status === "cooling" && trade.coolingUntil && (
-                <div className="mb-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <CoolingTimer
-                    coolingUntil={trade.coolingUntil}
-                    onExtend={() => handleExtendCooling(trade)}
-                  />
+                {/* Memo */}
+                <div className="mb-3">
+                  <MemoField tradeId={trade.id} initialMemo={trade.journalNote ?? ""} />
                 </div>
-              )}
 
-              {/* Stop-loss confirm dialog */}
-              {trade.status === "active" && trade.stopLossPrice && slConfirmId === trade.id && (
-                <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-2">
-                  <p className="text-xs text-destructive font-medium flex items-center gap-1.5">
-                    <AlertOctagon className="w-3.5 h-3.5" />
-                    損切りラインに達しましたか？（設定: {trade.stopLossPrice.toLocaleString()}）
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleSlExecute(trade)}
-                      className="flex-1 text-xs py-1.5 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30 transition-colors font-medium"
+                {/* Actions */}
+                <div className="flex gap-2 flex-wrap">
+                  {trade.status === "cooling" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePromote(trade)}
+                      className="text-xs text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
                     >
-                      実行した（損切り決済）
-                    </button>
-                    <button
-                      onClick={() => handleSlDelay(trade)}
-                      className="flex-1 text-xs py-1.5 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground hover:bg-muted/50 transition-colors font-medium"
-                    >
-                      まだ保留
-                    </button>
-                  </div>
+                      <Clock className="w-3 h-3 mr-1" />今すぐ保有開始
+                    </Button>
+                  )}
+                  {trade.status === "active" && (
+                    <>
+                      {trade.orderType === "moomoo" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSellTarget(trade)}
+                          className="text-xs text-primary border-primary/30 hover:bg-primary/10"
+                        >
+                          <Send className="w-3 h-3 mr-1" />売却注文
+                        </Button>
+                      )}
+                      {trade.stopLossPrice && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSlConfirmId(slConfirmId === trade.id ? null : trade.id)}
+                          className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                        >
+                          <AlertOctagon className="w-3 h-3 mr-1" />損切り確認
+                          {trade.slDelayCount ? (
+                            <span className="ml-1 text-[10px] bg-destructive/20 px-1 rounded">{trade.slDelayCount}回</span>
+                          ) : null}
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => handleClose(trade, "win")} className="text-xs text-success border-success/30 hover:bg-success/10">
+                        <CheckCircle className="w-3 h-3 mr-1" />勝ち
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleClose(trade, "loss")} className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
+                        <XCircle className="w-3 h-3 mr-1" />負け
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleClose(trade, "breakeven")} className="text-xs">
+                        トントン
+                      </Button>
+                    </>
+                  )}
                   <button
-                    onClick={() => setSlConfirmId(null)}
-                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => navigate(`/trades/${trade.id}`)}
+                    className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    キャンセル
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(trade.id)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-              )}
-
-              {/* Holding deadline indicator */}
-              {trade.status === "active" && (() => {
-                const overdue = isOverDeadline(trade, holdingLimits);
-                const hrs = hoursUntilDeadline(trade, holdingLimits);
-                if (!overdue && (hrs === null || hrs > 4)) return null;
-                return (
-                  <div className={cn(
-                    "flex items-center gap-1.5 text-[10px] mb-2 px-1",
-                    overdue ? "text-destructive" : "text-amber-400"
-                  )}>
-                    <Clock className="w-3 h-3" />
-                    {overdue ? "期限超過 — 戦略を確認してください" : `期限まであと${Math.round(hrs!)}時間`}
-                  </div>
-                );
-              })()}
-
-              <div className="grid grid-cols-3 gap-3 text-xs mb-3">
-                <div>
-                  <p className="text-muted-foreground">エントリー</p>
-                  <p className="font-mono font-medium text-foreground">{trade.entryPrice?.toLocaleString() ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">損切り</p>
-                  <p className="font-mono font-medium text-destructive">{trade.stopLossPrice?.toLocaleString() ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">利確</p>
-                  <p className="font-mono font-medium text-success">{trade.takeProfitPrice?.toLocaleString() ?? "—"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                {trade.riskRewardRatio && (
-                  <span className="font-mono">RR: 1:{trade.riskRewardRatio}</span>
-                )}
-                {trade.fomoScore !== undefined && (
-                  <span className={cn(
-                    "px-2 py-0.5 rounded-full",
-                    trade.fomoScore >= 70 ? "bg-destructive/10 text-destructive" :
-                    trade.fomoScore >= 50 ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
-                  )}>
-                    FOMO: {trade.fomoScore}
-                  </span>
-                )}
-                <span>{new Date(trade.createdAt).toLocaleDateString("ja-JP")}</span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 flex-wrap">
-                {trade.status === "cooling" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handlePromote(trade)}
-                    className="text-xs text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
-                  >
-                    <Clock className="w-3 h-3 mr-1" />今すぐ保有開始
-                  </Button>
-                )}
-                {trade.status === "active" && (
-                  <>
-                    {trade.orderType === "moomoo" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSellTarget(trade)}
-                        className="text-xs text-primary border-primary/30 hover:bg-primary/10"
-                      >
-                        <Send className="w-3 h-3 mr-1" />売却注文
-                      </Button>
-                    )}
-                    {trade.stopLossPrice && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSlConfirmId(slConfirmId === trade.id ? null : trade.id)}
-                        className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
-                      >
-                        <AlertOctagon className="w-3 h-3 mr-1" />損切り確認
-                        {trade.slDelayCount ? (
-                          <span className="ml-1 text-[10px] bg-destructive/20 px-1 rounded">{trade.slDelayCount}回</span>
-                        ) : null}
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline" onClick={() => handleClose(trade, "win")} className="text-xs text-success border-success/30 hover:bg-success/10">
-                      <CheckCircle className="w-3 h-3 mr-1" />勝ち
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleClose(trade, "loss")} className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
-                      <XCircle className="w-3 h-3 mr-1" />負け
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleClose(trade, "breakeven")} className="text-xs">
-                      トントン
-                    </Button>
-                  </>
-                )}
-                <button
-                  onClick={() => navigate(`/trades/${trade.id}`)}
-                  className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(trade.id)}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        )
       )}
 
       {/* 売却注文モーダル */}

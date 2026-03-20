@@ -77,7 +77,7 @@ const STEPS_CORE = [
 // ── 深掘り5問
 const STEPS_DEEP = [
   { key: "reason",     question: "エントリーの根拠は？",   sub: "具体的に書くほど、自分の判断を客観視できます" },
-  { key: "source",     question: "情報源はどこですか？",    sub: "例: Twitter、YouTube、決算資料、友人…" },
+  { key: "source",     question: "今回の意思決定に影響した情報源を教えてください",    sub: "複数選択可" },
   { key: "whyNow",     question: "なぜ今入るのですか？",    sub: "明日ではダメな理由を言語化してください" },
   { key: "holdPeriod", question: "いつまで保有する予定？",  sub: "デイトレ・スイングなどスタイルを選択" },
   { key: "stopLoss",   question: "損切りラインは？",        sub: "未定の場合は正直に「未定」と記入" },
@@ -1663,6 +1663,28 @@ export default function CheckFlow() {
             FOMO診断へ進む
             <ArrowRight className="ml-2 w-4 h-4" />
           </Button>
+          <button
+            onClick={() => {
+              const fomo = calculateFomoScore({
+                ticker: answers.ticker ?? "",
+                triggerReason: answers.triggerReason ?? "",
+                entryReason: answers.entryReason ?? "",
+                infoSource: answers.infoSource ?? "",
+                whyNow: answers.whyNow ?? "",
+                holdPeriodLabel: answers.holdPeriodLabel ?? "",
+                stopLossReason: answers.stopLossReason ?? "",
+                marketFearGreedValue: fearGreedValue,
+              });
+              setFomoResult(fomo);
+              const audit = generateAIAudit(null, fearGreedValue, 0, 0, 0, answers.direction ?? "long");
+              setAiAudit(audit);
+              setCheckedPledges(new Array(settings.pledges.length).fill(false));
+              setPhase("fomo_result");
+            }}
+            className="w-full mt-2 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            スキップしてFOMO診断へ
+          </button>
         </div>
       </div>
     );
@@ -1897,15 +1919,47 @@ export default function CheckFlow() {
                 )}
 
                 {/* ── 情報源 ── */}
-                {step.key === "source" && (
-                  <Input
-                    placeholder="例: Twitter、YouTube、決算資料、友人から…"
-                    value={answers.infoSource ?? ""}
-                    onChange={(e) => updateAnswer("infoSource", e.target.value)}
-                    className="bg-card/50 border-border/40 py-6 text-lg"
-                    autoFocus
-                  />
-                )}
+                {step.key === "source" && (() => {
+                  const INFO_SOURCE_OPTIONS = [
+                    "決算・IR",
+                    "業績修正・開示情報",
+                    "ニュース",
+                    "AI",
+                    "SNS",
+                    "チャート",
+                    "出来高",
+                    "地合い・マクロ",
+                    "誰かからの推奨",
+                    "自分のルール",
+                    "その他",
+                  ];
+                  const selected = (answers.infoSource ?? "").split(",").map(s => s.trim()).filter(Boolean);
+                  const toggle = (opt: string) => {
+                    const next = selected.includes(opt)
+                      ? selected.filter(s => s !== opt)
+                      : [...selected, opt];
+                    updateAnswer("infoSource", next.join(", "));
+                  };
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      {INFO_SOURCE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggle(opt)}
+                          className={cn(
+                            "px-3 py-2 rounded-xl border text-sm font-medium transition-all",
+                            selected.includes(opt)
+                              ? "border-primary/50 bg-primary/15 text-foreground"
+                              : "border-border/30 bg-card/50 text-muted-foreground hover:border-border/60 hover:text-foreground"
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* ── 今入る理由 ── */}
                 {step.key === "whyNow" && (
@@ -1965,15 +2019,68 @@ export default function CheckFlow() {
                 )}
 
                 {/* ── 損切りライン ── */}
-                {step.key === "stopLoss" && (
-                  <Input
-                    placeholder="例: -10%で損切り、1800円以下で売却、未定"
-                    value={answers.stopLossReason ?? ""}
-                    onChange={(e) => updateAnswer("stopLossReason", e.target.value)}
-                    className="bg-card/50 border-border/40 py-6 text-lg"
-                    autoFocus
-                  />
-                )}
+                {step.key === "stopLoss" && (() => {
+                  const SL_PRESETS = ["-5%", "-10%", "-15%", "-20%", "-25%", "-30%"];
+                  const currentVal = answers.stopLossReason ?? "";
+                  // Parse current % value for stepper
+                  const pctMatch = currentVal.match(/^-?(\d+(?:\.\d+)?)%$/);
+                  const currentPct = pctMatch ? parseFloat(pctMatch[1]) : null;
+                  const stepPct = (delta: number) => {
+                    const base = currentPct ?? 10;
+                    const next = Math.max(1, Math.min(50, base + delta));
+                    updateAnswer("stopLossReason", `-${next}%`);
+                  };
+                  return (
+                    <div className="space-y-4">
+                      {/* Preset chips */}
+                      <div className="flex flex-wrap gap-2">
+                        {SL_PRESETS.map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => updateAnswer("stopLossReason", p)}
+                            className={cn(
+                              "px-3 py-2 rounded-xl border text-sm font-mono font-medium transition-all",
+                              currentVal === p
+                                ? "border-destructive/50 bg-destructive/15 text-destructive"
+                                : "border-border/30 bg-card/50 text-muted-foreground hover:border-border/60 hover:text-foreground"
+                            )}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Stepper */}
+                      {currentPct !== null && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => stepPct(1)}
+                            className="w-9 h-9 rounded-xl border border-border/40 bg-card/50 text-muted-foreground hover:text-foreground hover:border-border/70 transition-all flex items-center justify-center font-bold text-lg"
+                          >
+                            +
+                          </button>
+                          <span className="flex-1 text-center font-mono font-bold text-xl text-destructive">{currentVal}</span>
+                          <button
+                            type="button"
+                            onClick={() => stepPct(-1)}
+                            className="w-9 h-9 rounded-xl border border-border/40 bg-card/50 text-muted-foreground hover:text-foreground hover:border-border/70 transition-all flex items-center justify-center font-bold text-lg"
+                          >
+                            −
+                          </button>
+                        </div>
+                      )}
+                      {/* Manual input */}
+                      <Input
+                        placeholder="または自由入力: 例 1800円以下、未定"
+                        value={currentVal}
+                        onChange={(e) => updateAnswer("stopLossReason", e.target.value)}
+                        className="bg-card/50 border-border/40"
+                        autoFocus={!currentPct}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             </motion.div>
           </AnimatePresence>
