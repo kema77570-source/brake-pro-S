@@ -41,6 +41,7 @@ export default function TickerSearchDropdown({ value, onChange, placeholder, cla
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -65,9 +66,11 @@ export default function TickerSearchDropdown({ value, onChange, placeholder, cla
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/api/quote/search`, { params: { q } });
+      setSearchError(false);
       setResults(res.data.results ?? []);
       setOpen(true);
     } catch {
+      setSearchError(true);
       setResults([]);
     } finally {
       setLoading(false);
@@ -77,6 +80,7 @@ export default function TickerSearchDropdown({ value, onChange, placeholder, cla
   const handleInput = (val: string) => {
     setQuery(val);
     setSelected(false);
+    setSearchError(false);
     // Propagate raw input immediately so parent tracks it
     onChange(val, "");
     // Debounce API call
@@ -111,6 +115,19 @@ export default function TickerSearchDropdown({ value, onChange, placeholder, cla
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
         )}
       </div>
+
+      {searchError && !loading && (
+        <div className="mt-1 flex items-center justify-between px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5">
+          <p className="text-xs text-destructive">検索に失敗しました</p>
+          <button
+            type="button"
+            onClick={() => query.length >= 1 && search(query)}
+            className="text-xs text-primary hover:text-primary/80 underline"
+          >
+            再試行
+          </button>
+        </div>
+      )}
 
       <AnimatePresence>
         {open && results.length > 0 && (

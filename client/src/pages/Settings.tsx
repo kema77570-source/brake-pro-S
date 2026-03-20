@@ -67,6 +67,7 @@ export default function Settings() {
   const [newCooling, setNewCooling] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [volume, setVolume] = useState(50);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const toggleAudio = (enabled: boolean) => {
     setAudioEnabled(enabled);
@@ -130,7 +131,7 @@ export default function Settings() {
             <h1 className="font-display text-2xl font-bold text-foreground">設定</h1>
             <p className="text-sm text-muted-foreground mt-1">閾値・通知・誓約のカスタマイズ</p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleResetAll} className="gap-2 text-xs">
+          <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(true)} className="gap-2 text-xs">
             <RotateCcw className="w-3 h-3" />リセット
           </Button>
         </div>
@@ -177,6 +178,12 @@ export default function Settings() {
               max={20}
             />
           </SettingRow>
+          {settings.streakSuspend1Count >= settings.streakSuspend2Count && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
+              <p className="text-xs text-warning">第1停止 ({settings.streakSuspend1Count}連敗) が第2停止 ({settings.streakSuspend2Count}連敗) 以上です。第2を第1より大きな値にしてください。</p>
+            </div>
+          )}
           <div className="pt-3">
             <Button variant="outline" size="sm" onClick={handleResetStreak} className="text-xs gap-2 text-warning border-warning/30 hover:bg-warning/10">
               <RotateCcw className="w-3 h-3" />連敗ストリークをリセット
@@ -411,6 +418,23 @@ export default function Settings() {
 
         <div className="h-8" />
       </div>
+
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border/50 rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-display text-lg font-bold text-foreground mb-2">設定をリセットしますか？</h3>
+            <p className="text-sm text-muted-foreground mb-6">すべての設定がデフォルト値に戻ります。この操作は元に戻せません。</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-border/40 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                キャンセル
+              </button>
+              <button onClick={() => { handleResetAll(); setShowResetConfirm(false); }} className="flex-1 py-2.5 rounded-xl bg-destructive/20 border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/30 transition-colors">
+                リセットする
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

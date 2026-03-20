@@ -30,6 +30,7 @@ import {
   Wallet,
   Flame,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUserAuth } from "@/contexts/UserAuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
@@ -139,20 +140,27 @@ export default function Layout({ children }: LayoutProps) {
             {NAV_ITEMS.map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               return (
-                <Link key={item.href} href={item.href}>
-                  <div className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-primary/15 text-primary border border-primary/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  )}>
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
-                    {item.href === "/alarms" && (
-                      <span className="ml-auto w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    )}
-                  </div>
-                </Link>
+                <Tooltip key={item.href} delayDuration={300}>
+                  <TooltipTrigger asChild>
+                    <Link href={item.href}>
+                      <div className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                        isActive
+                          ? "bg-primary/15 text-primary border border-primary/20"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      )}>
+                        <item.icon className="w-4 h-4 shrink-0" />
+                        <span>{item.label}</span>
+                        {item.href === "/alarms" && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-primary animate-pulse" />
+                        )}
+                      </div>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </nav>

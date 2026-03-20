@@ -77,12 +77,12 @@ function CoolingBanner({ trade, onNavigate }: { trade: { id: string; ticker: str
 
 // ─── Follow-Through Day Banner ───────────────────────────────────────────────
 
-function FollowThroughDayBanner({ data }: { data: FollowThroughDayData }) {
+function FollowThroughDayBanner({ data, onClick }: { data: FollowThroughDayData; onClick?: () => void }) {
   const ftdSignals = data.signals.filter((s) => s.isFTD);
   if (ftdSignals.length === 0) return null;
 
   return (
-    <div className="w-full rounded-xl border-2 border-emerald-400/60 bg-emerald-500/10 p-4 space-y-3">
+    <button type="button" onClick={onClick} className="w-full text-left rounded-xl border-2 border-emerald-400/60 bg-emerald-500/10 p-4 space-y-3 hover:bg-emerald-500/15 transition-colors cursor-pointer">
       <div className="flex items-center gap-2">
         <TrendingUp className="w-5 h-5 text-emerald-400 shrink-0" />
         <span className="text-sm font-bold text-emerald-300 uppercase tracking-wide">
@@ -110,7 +110,7 @@ function FollowThroughDayBanner({ data }: { data: FollowThroughDayData }) {
           </div>
         ))}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -336,7 +336,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.08 }}
-        className="px-4 lg:px-6 mt-4 grid grid-cols-2 gap-3"
+        className="px-4 lg:px-6 mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3"
       >
         {/* Loss streak */}
         <div className="glass-card rounded-xl p-4">
@@ -450,7 +450,7 @@ export default function Home() {
 
         {/* Heart rate — full width */}
         <div className={cn(
-          "col-span-2 glass-card rounded-xl p-4 flex items-center gap-4",
+          "col-span-2 sm:col-span-4 glass-card rounded-xl p-4 flex items-center gap-4",
           latestHR?.stressLevel === "critical" ? "border border-destructive/30 bg-destructive/5" :
           latestHR?.stressLevel === "high"     ? "border border-warning/30 bg-warning/5" :
           "border border-border/20"
@@ -614,7 +614,7 @@ export default function Home() {
           transition={{ duration: 0.3, delay: 0.15 }}
           className="px-4 lg:px-6 mt-4"
         >
-          <FollowThroughDayBanner data={ftdData} />
+          <FollowThroughDayBanner data={ftdData} onClick={() => navigate("/lead-lag")} />
         </motion.div>
       )}
 

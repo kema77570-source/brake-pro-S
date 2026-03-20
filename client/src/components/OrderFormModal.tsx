@@ -117,6 +117,7 @@ export default function OrderFormModal({
   const [limitOffset, setLimitOffset] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   // 2-step confirm flow: "form" → "preview" → (submit) → "done"
   const [step, setStep] = useState<"form" | "preview">("form");
   const [checklist, setChecklist] = useState({
@@ -129,6 +130,28 @@ export default function OrderFormModal({
   const allChecked = Object.values(checklist).every(Boolean);
 
   const selected = ORDER_TYPES.find((o) => o.value === orderType)!;
+
+  const formErrors = {
+    qty: (() => {
+      const n = parseInt(qty);
+      if (!qty) return null;
+      if (isNaN(n) || n <= 0) return "1以上の整数を入力してください";
+      return null;
+    })(),
+    price: selected.needsPrice && price && parseFloat(price) <= 0 ? "0より大きい価格を入力してください" : null,
+    triggerPrice: selected.needsTrigger && triggerPrice && parseFloat(triggerPrice) <= 0 ? "0より大きいトリガー価格を入力してください" : null,
+    trailAmount: selected.needsTrail && trailAmount && parseFloat(trailAmount) <= 0 ? "0より大きいトレール幅を入力してください" : null,
+  };
+
+  const hasUnsavedData = qty !== (defaultQty?.toString() ?? "100") || !!price || !!triggerPrice || !!trailAmount || step === "preview";
+
+  const handleClose = () => {
+    if (hasUnsavedData && !result) {
+      setShowCloseConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   const handleConfirm = () => {
     const qtyNum = parseInt(qty);
@@ -185,14 +208,14 @@ export default function OrderFormModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
       >
         <motion.div
           key="modal"
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 40 }}
-          className="w-full max-w-lg bg-card border border-border/50 rounded-2xl shadow-2xl overflow-hidden"
+          className="w-full max-w-lg bg-card border border-border/50 rounded-2xl shadow-2xl overflow-hidden relative"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
@@ -211,7 +234,7 @@ export default function OrderFormModal({
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">📱 moomoo証券へ発注</p>
             </div>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -286,6 +309,7 @@ export default function OrderFormModal({
                   className="bg-card/30 border-border/30"
                   placeholder="例: 100"
                 />
+                {formErrors.qty && <p className="text-xs text-destructive mt-1">{formErrors.qty}</p>}
               </div>
 
               {/* 指値価格 */}
@@ -301,6 +325,7 @@ export default function OrderFormModal({
                     className="bg-card/30 border-border/30"
                     placeholder="例: 150.50"
                   />
+                  {formErrors.price && <p className="text-xs text-destructive mt-1">{formErrors.price}</p>}
                 </div>
               )}
 
@@ -317,6 +342,7 @@ export default function OrderFormModal({
                     className="bg-card/30 border-border/30"
                     placeholder="例: 148.00"
                   />
+                  {formErrors.triggerPrice && <p className="text-xs text-destructive mt-1">{formErrors.triggerPrice}</p>}
                 </div>
               )}
 
@@ -351,6 +377,7 @@ export default function OrderFormModal({
                       ))}
                     </div>
                   </div>
+                  {formErrors.trailAmount && <p className="text-xs text-destructive mt-1">{formErrors.trailAmount}</p>}
                 </div>
               )}
 
@@ -382,6 +409,7 @@ export default function OrderFormModal({
               <Button
                 onClick={handleConfirm}
                 variant="outline"
+                disabled={Object.values(formErrors).some(Boolean)}
                 className="w-full font-semibold border-primary/40 text-primary hover:bg-primary/10"
               >
                 内容を確認する
@@ -471,13 +499,37 @@ export default function OrderFormModal({
                 )}
               >
                 {submitting ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />送信中…</>
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />注文送信中…</>
                 ) : (
-                  `✅ チェックして発注する`
+                  <>発注する<ArrowRight className="w-4 h-4 ml-2" /></>
                 )}
               </Button>
             </div>
           ) : null}
+
+          {/* Unsaved data close confirmation overlay */}
+          {showCloseConfirm && (
+            <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-2xl p-4">
+              <div className="bg-card border border-border/50 rounded-xl p-5 max-w-xs w-full">
+                <h3 className="font-display text-base font-bold text-foreground mb-2">入力内容を破棄しますか？</h3>
+                <p className="text-sm text-muted-foreground mb-4">閉じると入力した発注情報が失われます。</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowCloseConfirm(false)}
+                    className="flex-1 py-2 rounded-lg border border-border/40 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    戻る
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 py-2 rounded-lg bg-destructive/20 border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/30 transition-colors"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>

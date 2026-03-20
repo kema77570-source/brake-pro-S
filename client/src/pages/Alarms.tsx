@@ -37,6 +37,7 @@ export default function Alarms() {
   const [hrHistory, setHrHistory] = useState<HeartRateReading[]>(() => getHeartRateHistory().slice(0, 10));
   const [showAddAlarm, setShowAddAlarm] = useState(false);
   const [showAddHR, setShowAddHR] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Add alarm form
   const [ticker, setTicker] = useState("");
@@ -267,7 +268,7 @@ export default function Alarms() {
                     <Button size="sm" variant="outline" onClick={() => handleDismiss(alarm.id)} className="text-xs gap-1">
                       <CheckCircle className="w-3 h-3" />確認
                     </Button>
-                    <button onClick={() => handleDelete(alarm.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                    <button onClick={() => setDeleteConfirmId(alarm.id)} className="text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -297,11 +298,28 @@ export default function Alarms() {
                   <span className="font-display font-bold text-sm text-foreground">{alarm.ticker}</span>
                   <span className="text-xs text-muted-foreground ml-2">{alarm.label}</span>
                 </div>
-                <button onClick={() => handleDelete(alarm.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                <button onClick={() => setDeleteConfirmId(alarm.id)} className="text-muted-foreground hover:text-destructive transition-colors">
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border/50 rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-display text-lg font-bold text-foreground mb-2">アラームを削除しますか？</h3>
+            <p className="text-sm text-muted-foreground mb-6">この操作は元に戻せません。</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2.5 rounded-xl border border-border/40 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                キャンセル
+              </button>
+              <button onClick={() => { handleDelete(deleteConfirmId); setDeleteConfirmId(null); }} className="flex-1 py-2.5 rounded-xl bg-destructive/20 border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/30 transition-colors">
+                削除する
+              </button>
+            </div>
           </div>
         </div>
       )}

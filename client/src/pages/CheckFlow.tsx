@@ -315,6 +315,9 @@ export default function CheckFlow() {
   const [templateName, setTemplateName] = useState("");
   const [templateSaved, setTemplateSaved] = useState(false);
 
+  // 離脱確認ダイアログ
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
   // 銘柄コードから価格自動取得
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const [fetchedPrice, setFetchedPrice] = useState<string | null>(null);
@@ -380,6 +383,27 @@ export default function CheckFlow() {
   const step = currentSteps[currentStep];
   const progressOffset = phase === "deep_questions" ? STEPS_CORE.length : 0;
   const progress = ((progressOffset + currentStep + 1) / TOTAL_STEPS) * 100;
+
+  // グローバル進捗バー（全フェーズ共通）
+  const globalProgress = (() => {
+    if (phase === "questions") {
+      return 10 + (currentStep / STEPS_CORE.length) * 20;
+    }
+    if (phase === "deep_questions") {
+      return 30 + (currentStep / STEPS_DEEP.length) * 30;
+    }
+    if (phase === "fomo_questions") return 60 + (fomoQuizStep / Math.max(1, 10)) * 15;
+    if (phase === "daytrader_warning") return 76;
+    if (phase === "rr_calc") return 77;
+    if (phase === "fomo_result") return 82;
+    if (phase === "ai_audit") return 87;
+    if (phase === "pledge") return 92;
+    if (phase === "order_confirm") return 96;
+    if (phase === "order_broker") return 98;
+    if (phase === "order_form") return 99;
+    if (phase === "cooling" || phase === "done") return 100;
+    return 0;
+  })();
 
   const canProceed = () => {
     const key = step?.key;
@@ -453,7 +477,15 @@ export default function CheckFlow() {
       }
     } else {
       if (currentStep > 0) setCurrentStep((s) => s - 1);
-      else navigate("/");
+      else {
+        // 入力済みの回答がある場合は離脱確認ダイアログを表示
+        const hasFilledAnswers = Object.values(answers).some((v) => v !== undefined && v !== "" && v !== 0);
+        if (hasFilledAnswers) {
+          setShowExitConfirm(true);
+        } else {
+          navigate("/");
+        }
+      }
     }
   };
 
@@ -1458,8 +1490,37 @@ export default function CheckFlow() {
       ? calculateRiskReward(entry, sl, tp, answers.direction ?? "long")
       : null;
 
+    // インラインバリデーション
+    const rrErrors: { stopLoss?: string; takeProfit?: string } = {};
+    const dir = answers.direction ?? "long";
+    if (entry > 0 && sl > 0) {
+      if (sl === entry) {
+        rrErrors.stopLoss = "損切りと入価格が同じです";
+      } else if (dir === "long" && sl >= entry) {
+        rrErrors.stopLoss = "ロングの場合、損切りはエントリー価格より低くする必要があります";
+      } else if (dir === "short" && sl <= entry) {
+        rrErrors.stopLoss = "ショートの場合、損切りはエントリー価格より高くする必要があります";
+      }
+    }
+    if (entry > 0 && tp > 0) {
+      if (dir === "long" && tp <= entry) {
+        rrErrors.takeProfit = "ロングの場合、利確はエントリー価格より高くする必要があります";
+      } else if (dir === "short" && tp >= entry) {
+        rrErrors.takeProfit = "ショートの場合、利確はエントリー価格より低くする必要があります";
+      }
+    }
+    const hasRrErrors = Object.keys(rrErrors).length > 0;
+
     return (
       <div className="min-h-screen px-4 py-8 lg:px-8">
+        {/* グローバル進捗バー */}
+        <div className="fixed left-0 right-0 top-0 z-50 h-1 bg-muted/30">
+          <motion.div
+            className="h-full bg-primary"
+            animate={{ width: `${globalProgress}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          />
+        </div>
         <div className="max-w-lg mx-auto">
           <button onClick={() => { setPhase("questions"); setCurrentStep(STEPS_CORE.length - 1); }} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8">
             <ArrowLeft className="w-4 h-4" />戻る
@@ -1478,21 +1539,21 @@ export default function CheckFlow() {
           <div className="mb-5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">取引方向</label>
             <div className="grid grid-cols-2 gap-2">
-              {(["long", "short"] as const).map((dir) => (
+              {(["long", "short"] as const).map((d) => (
                 <button
-                  key={dir}
-                  onClick={() => updateAnswer("direction", dir)}
+                  key={d}
+                  onClick={() => updateAnswer("direction", d)}
                   className={cn(
                     "flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-medium transition-all",
-                    answers.direction === dir
-                      ? dir === "long"
+                    answers.direction === d
+                      ? d === "long"
                         ? "border-success/40 bg-success/10 text-success"
                         : "border-destructive/40 bg-destructive/10 text-destructive"
                       : "border-border/30 bg-card/50 text-muted-foreground hover:border-border/60"
                   )}
                 >
-                  {dir === "long" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {dir === "long" ? "ロング（買い）" : "ショート（売り）"}
+                  {d === "long" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  {d === "long" ? "ロング（買い）" : "ショート（売り）"}
                 </button>
               ))}
             </div>
@@ -1514,8 +1575,20 @@ export default function CheckFlow() {
                 placeholder={field.placeholder}
                 value={answers[field.key as keyof Answers] as string ?? ""}
                 onChange={(e) => updateAnswer(field.key, e.target.value)}
-                className="bg-card/50 border-border/40 font-mono text-lg h-12"
+                className={cn(
+                  "bg-card/50 border-border/40 font-mono text-lg h-12",
+                  (field.key === "stopLossPrice" && rrErrors.stopLoss) ||
+                  (field.key === "takeProfitPrice" && rrErrors.takeProfit)
+                    ? "border-destructive/60 focus-visible:ring-destructive/40"
+                    : ""
+                )}
               />
+              {field.key === "stopLossPrice" && rrErrors.stopLoss && (
+                <p className="text-xs text-destructive mt-1">{rrErrors.stopLoss}</p>
+              )}
+              {field.key === "takeProfitPrice" && rrErrors.takeProfit && (
+                <p className="text-xs text-destructive mt-1">{rrErrors.takeProfit}</p>
+              )}
             </div>
           ))}
 
@@ -1566,7 +1639,7 @@ export default function CheckFlow() {
 
           <Button
             onClick={handleRRNext}
-            disabled={!answers.entryPrice || !answers.stopLossPrice || !answers.takeProfitPrice}
+            disabled={!answers.entryPrice || !answers.stopLossPrice || !answers.takeProfitPrice || hasRrErrors}
             className="w-full bg-primary hover:bg-primary/90 h-12"
           >
             FOMO診断へ進む
@@ -1580,12 +1653,12 @@ export default function CheckFlow() {
   // ── Questions ────────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Progress bar */}
+      {/* グローバル進捗バー */}
       <div className="fixed left-0 right-0 top-0 z-50 h-1 bg-muted/30">
         <motion.div
           className="h-full bg-primary"
           initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
+          animate={{ width: `${globalProgress}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         />
       </div>
@@ -1596,11 +1669,11 @@ export default function CheckFlow() {
           <div className="flex items-center justify-between mb-10">
             <button onClick={prev} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-4 h-4" />
-              {currentStep === 0 ? "ホーム" : "戻る"}
+              {currentStep === 0 && phase === "questions" ? "ホーム" : "戻る"}
             </button>
             <div className="flex flex-col items-end">
-              <span className="text-sm text-muted-foreground font-mono">
-                {progressOffset + currentStep + 1} / {TOTAL_STEPS}
+              <span className="text-sm font-semibold text-foreground font-mono">
+                ステップ {progressOffset + currentStep + 1} / {TOTAL_STEPS}
               </span>
               {phase === "deep_questions" && currentStep === 0 && (
                 <span className="text-[10px] text-primary/70 mt-0.5">深掘り質問</span>
@@ -1784,20 +1857,24 @@ export default function CheckFlow() {
                 {/* ── エントリー理由 ── */}
                 {step.key === "reason" && (
                   <div className="relative">
-                    <Textarea
-                      placeholder="この銘柄を取引したい根拠を具体的に書いてください…"
-                      value={answers.entryReason ?? ""}
-                      onChange={(e) => updateAnswer("entryReason", e.target.value)}
-                      className="min-h-[120px] bg-card/50 border-border/40 pr-12"
-                      autoFocus
-                    />
-                    <div className="absolute top-2 right-2">
-                      <MicButton
-                        onResult={(text) =>
-                          updateAnswer("entryReason", (answers.entryReason ? answers.entryReason + " " : "") + text)
-                        }
+                    <div className="relative">
+                      <Textarea
+                        placeholder="この銘柄を取引したい根拠を具体的に書いてください…"
+                        value={answers.entryReason ?? ""}
+                        onChange={(e) => updateAnswer("entryReason", e.target.value)}
+                        className="min-h-[120px] bg-card/50 border-border/40 pr-12"
+                        autoFocus
+                        maxLength={200}
                       />
+                      <div className="absolute top-2 right-2">
+                        <MicButton
+                          onResult={(text) =>
+                            updateAnswer("entryReason", (answers.entryReason ? answers.entryReason + " " : "") + text)
+                          }
+                        />
+                      </div>
                     </div>
+                    <p className="text-right text-[10px] text-muted-foreground mt-1">{(answers.entryReason ?? "").length} / 200</p>
                   </div>
                 )}
 
@@ -1815,20 +1892,24 @@ export default function CheckFlow() {
                 {/* ── 今入る理由 ── */}
                 {step.key === "whyNow" && (
                   <div className="relative">
-                    <Textarea
-                      placeholder="明日ではなく今取引したい理由は…"
-                      value={answers.whyNow ?? ""}
-                      onChange={(e) => updateAnswer("whyNow", e.target.value)}
-                      className="min-h-[120px] bg-card/50 border-border/40 pr-12"
-                      autoFocus
-                    />
-                    <div className="absolute top-2 right-2">
-                      <MicButton
-                        onResult={(text) =>
-                          updateAnswer("whyNow", (answers.whyNow ? answers.whyNow + " " : "") + text)
-                        }
+                    <div className="relative">
+                      <Textarea
+                        placeholder="明日ではなく今取引したい理由は…"
+                        value={answers.whyNow ?? ""}
+                        onChange={(e) => updateAnswer("whyNow", e.target.value)}
+                        className="min-h-[120px] bg-card/50 border-border/40 pr-12"
+                        autoFocus
+                        maxLength={200}
                       />
+                      <div className="absolute top-2 right-2">
+                        <MicButton
+                          onResult={(text) =>
+                            updateAnswer("whyNow", (answers.whyNow ? answers.whyNow + " " : "") + text)
+                          }
+                        />
+                      </div>
                     </div>
+                    <p className="text-right text-[10px] text-muted-foreground mt-1">{(answers.whyNow ?? "").length} / 200</p>
                   </div>
                 )}
 
@@ -1900,6 +1981,24 @@ export default function CheckFlow() {
           </motion.div>
         </div>
       </div>
+
+      {/* 離脱確認ダイアログ */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border/50 rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-display text-lg font-bold text-foreground mb-2">チェックを中断しますか？</h3>
+            <p className="text-sm text-muted-foreground mb-6">入力内容は保存されません。</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowExitConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-border/40 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                続ける
+              </button>
+              <button onClick={() => navigate("/")} className="flex-1 py-2.5 rounded-xl bg-destructive/20 border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/30 transition-colors">
+                中断する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
