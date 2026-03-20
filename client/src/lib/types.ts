@@ -12,6 +12,7 @@ export interface TradeEntry {
   id: string;
   createdAt: string;
   updatedAt: string;
+  journalNote?: string;
 
   // Basic info
   ticker: string;
@@ -63,6 +64,9 @@ export interface TradeEntry {
 
   // Order routing
   orderType?: "moomoo" | "other" | "demo";  // how/where the trade was routed
+
+  // Stop-loss delay tracking
+  slDelayCount?: number;  // number of times stop-loss execution was postponed
 
   // Holding period tracking
   holdingCategory?: HoldingCategory;     // derived from holdPeriodLabel
@@ -381,4 +385,48 @@ export interface BadgeStats {
   epicCount: number;
   legendaryCount: number;
   recentBadges: AchievementBadge[];
+}
+
+// ─── Daily Condition ─────────────────────────────────────────────────────────
+
+export interface DailyCondition {
+  date: string; // YYYY-MM-DD
+  sleep: 1 | 2 | 3;    // 1=悪い 2=普通 3=良い
+  health: 1 | 2 | 3;
+  stress: 1 | 2 | 3;
+}
+
+// ─── Account Transaction ─────────────────────────────────────────────────────
+
+export interface AccountTransaction {
+  id: string;
+  date: string;
+  type: "deposit" | "withdrawal";
+  amount: number;
+  note?: string;
+}
+
+// ─── Challenge ───────────────────────────────────────────────────────────────
+
+export interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  targetDays: number;
+  startDate: string;
+  currentStreak: number;
+  bestStreak: number;
+  status: "active" | "failed" | "completed";
+  lastCheckedDate: string;
+}
+
+// ─── Trade Template ──────────────────────────────────────────────────────────
+
+export interface TradeTemplate {
+  id: string;
+  name: string;
+  triggerReason: string;
+  entryReason: string;
+  direction: "long" | "short";
+  createdAt: string;
 }

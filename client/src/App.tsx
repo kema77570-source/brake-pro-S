@@ -41,6 +41,8 @@ import NotificationSettings from "./pages/NotificationSettings";
 import NotFound from "./pages/NotFound";
 import StrategyReview from "./pages/StrategyReview";
 import OrderManager from "./pages/OrderManager";
+import AccountManager from "./pages/AccountManager";
+import ChallengePage from "./pages/ChallengePage";
 
 function Router() {
   return (
@@ -76,6 +78,8 @@ function Router() {
         <Route path="/notifications" component={NotificationSettings} />
         <Route path="/strategy-review/:tradeId" component={StrategyReview} />
         <Route path="/order-manager" component={OrderManager} />
+        <Route path="/account" component={AccountManager} />
+        <Route path="/challenge" component={ChallengePage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

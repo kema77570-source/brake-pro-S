@@ -23,6 +23,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
+  ReferenceLine,
 } from "recharts";
 import {
   TrendingUp,
@@ -38,6 +39,20 @@ import { Button } from "@/components/ui/button";
 import { getTrades, getSkipLog } from "@/lib/storage";
 import { getLastNWeeks, getCurrentWeekStats, type WeeklyStats } from "@/lib/reportAnalysis";
 import { cn } from "@/lib/utils";
+
+// Custom dot for FOMO trend line — color by score
+function FomoDot(props: { cx?: number; cy?: number; payload?: { fomoScore: number } }) {
+  const { cx, cy, payload } = props;
+  if (cx == null || cy == null || !payload) return null;
+  const score = payload.fomoScore;
+  const fill =
+    score >= 60
+      ? "oklch(0.6 0.22 25)"
+      : score >= 40
+      ? "oklch(0.75 0.18 80)"
+      : "oklch(0.65 0.18 160)";
+  return <circle cx={cx} cy={cy} r={5} fill={fill} />;
+}
 
 export default function WeeklyReport() {
   const [weeks, setWeeks] = useState(4);
@@ -72,6 +87,19 @@ export default function WeeklyReport() {
     good: w.goodSkips,
     missed: w.missedOpportunities,
   }));
+
+  // FOMO trend — last 30 closed trades sorted by date
+  const fomoTrendData = useMemo(() => {
+    return [...trades]
+      .filter((t) => t.status === "closed" || t.result != null)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .slice(-30)
+      .map((t) => ({
+        date: new Date(t.createdAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }),
+        fomoScore: t.fomoScore,
+        ticker: t.ticker,
+      }));
+  }, [trades]);
 
   // Current week pie chart
   const resultPie = [
@@ -437,12 +465,70 @@ export default function WeeklyReport() {
           </motion.div>
         </div>
 
-        {/* Insights */}
+        {/* FOMO Trend — last 30 trades */}
         <motion.div
           initial="hidden"
           animate="visible"
           variants={fadeUp}
           custom={8}
+          className="rounded-xl border border-border/30 bg-card/50 p-6 mb-6"
+        >
+          <h3 className="font-display font-bold text-lg text-foreground mb-1">FOMO傾向（直近30件）</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            <span className="inline-block w-2 h-2 rounded-full bg-success mr-1" />40未満=緑&nbsp;&nbsp;
+            <span className="inline-block w-2 h-2 rounded-full bg-warning mr-1" />40-60=黄&nbsp;&nbsp;
+            <span className="inline-block w-2 h-2 rounded-full bg-destructive mr-1" />60以上=赤
+          </p>
+          {fomoTrendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={fomoTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 10%)" />
+                <XAxis
+                  dataKey="date"
+                  stroke="oklch(0.55 0.015 65)"
+                  style={{ fontSize: "11px" }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  stroke="oklch(0.55 0.015 65)"
+                  style={{ fontSize: "11px" }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "oklch(0.21 0.006 285.885)",
+                    border: "1px solid oklch(1 0 0 / 10%)",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                  labelStyle={{ color: "oklch(0.85 0.005 65)" }}
+                  formatter={(value: number) => [value, "FOMAスコア"]}
+                />
+                <ReferenceLine y={60} stroke="oklch(0.6 0.22 25)" strokeDasharray="4 4" />
+                <ReferenceLine y={40} stroke="oklch(0.75 0.18 80)" strokeDasharray="4 4" />
+                <Line
+                  type="monotone"
+                  dataKey="fomoScore"
+                  stroke="oklch(0.62 0.22 240)"
+                  strokeWidth={2}
+                  dot={<FomoDot />}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[260px] flex items-center justify-center">
+              <p className="text-sm text-muted-foreground">決済済みトレードがまだありません</p>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Insights */}
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeUp}
+          custom={9}
           className="rounded-xl border border-border/30 bg-card/50 p-6"
         >
           <h3 className="font-display font-bold text-lg text-foreground mb-4">

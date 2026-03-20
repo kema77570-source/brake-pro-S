@@ -18,6 +18,8 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,9 +30,9 @@ import OrderFormModal from "@/components/OrderFormModal";
 import TickerSearchDropdown from "@/components/TickerSearchDropdown";
 import { useApp } from "@/contexts/AppContext";
 import { calculateFomoScore, calculateRiskReward, generateAIAudit } from "@/lib/analysis";
-import { saveTrade, saveAlarm } from "@/lib/storage";
+import { saveTrade, saveAlarm, getTemplates, saveTemplate, deleteTemplate } from "@/lib/storage";
 import { fetchCryptoFearGreed } from "@/lib/marketApi";
-import type { TradeEntry, FomoFactor, AIAuditResult } from "@/lib/types";
+import type { TradeEntry, FomoFactor, AIAuditResult, TradeTemplate } from "@/lib/types";
 import { TRIGGER_REASONS, HOLD_PERIOD_OPTIONS, DEFAULT_HOLDING_LIMITS } from "@/lib/types";
 import { labelToCategory } from "@/lib/holdingPeriod";
 import {
@@ -103,6 +105,70 @@ const pageVariants = {
   center: { opacity: 1, x: 0 },
   exit: { opacity: 0, x: -40 },
 };
+
+// ─── Web Speech API hook ──────────────────────────────────────────────────────
+function useSpeechRecognition(onResult: (text: string) => void) {
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const SpeechRecognitionCtor =
+    typeof window !== "undefined"
+      ? (window.SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition)
+      : undefined;
+
+  const isSupported = !!SpeechRecognitionCtor;
+
+  const startListening = () => {
+    if (!SpeechRecognitionCtor) return;
+    const rec = new SpeechRecognitionCtor();
+    rec.lang = "ja-JP";
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0][0].transcript;
+      onResult(transcript);
+    };
+    rec.onend = () => setIsListening(false);
+    rec.onerror = () => setIsListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+  };
+
+  const stopListening = () => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  };
+
+  const toggle = () => {
+    if (isListening) stopListening();
+    else startListening();
+  };
+
+  return { isListening, isSupported, toggle };
+}
+
+// ─── MicButton component ──────────────────────────────────────────────────────
+function MicButton({ onResult, className }: { onResult: (text: string) => void; className?: string }) {
+  const { isListening, isSupported, toggle } = useSpeechRecognition(onResult);
+  if (!isSupported) return null;
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className={cn(
+        "flex items-center justify-center w-9 h-9 rounded-xl border transition-all shrink-0",
+        isListening
+          ? "bg-destructive/20 border-destructive/50 text-destructive animate-pulse"
+          : "bg-card/50 border-border/40 text-muted-foreground hover:text-foreground hover:border-border/70",
+        className
+      )}
+      title={isListening ? "録音停止" : "音声入力"}
+    >
+      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+    </button>
+  );
+}
 
 // ── Daytrader FX/CFD Warning Component ───────────────────────────────────
 function DaytraderWarningScreen({ onChoice }: { onChoice: (proceed: boolean, neverShow: boolean) => void }) {
@@ -242,6 +308,12 @@ export default function CheckFlow() {
   const [fomoQuizStep, setFomoQuizStep] = useState(0);
   const [fomoQuizAnswers, setFomoQuizAnswers] = useState<number[]>([]);
   const [fomoQuizScores, setFomoQuizScores] = useState<FomoQuizScores | null>(null);
+
+  // テンプレート
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [templates, setTemplates] = useState<TradeTemplate[]>(() => getTemplates());
+  const [templateName, setTemplateName] = useState("");
+  const [templateSaved, setTemplateSaved] = useState(false);
 
   // 銘柄コードから価格自動取得
   const [fetchingPrice, setFetchingPrice] = useState(false);
@@ -670,6 +742,19 @@ export default function CheckFlow() {
 
   // ── Broker Selection（取引を続けるの次）────────────────────────────────────
   if (phase === "order_broker") {
+    const handleSaveTemplate = () => {
+      if (!templateName.trim()) return;
+      saveTemplate({
+        name: templateName.trim(),
+        triggerReason: answers.triggerReason ?? "",
+        entryReason: answers.entryReason ?? "",
+        direction: answers.direction ?? "long",
+      });
+      setTemplates(getTemplates());
+      setTemplateSaved(true);
+      toast.success("テンプレートとして保存しました");
+    };
+
     return (
       <div className="min-h-screen px-4 py-8 lg:px-8">
         <div className="max-w-lg mx-auto">
@@ -686,6 +771,34 @@ export default function CheckFlow() {
               どこで発注しますか？
             </p>
           </div>
+
+          {/* テンプレート保存 */}
+          {!templateSaved && (
+            <div className="mb-6 p-4 rounded-xl border border-border/30 bg-card/50">
+              <p className="text-xs text-muted-foreground mb-2">このトレードをテンプレートとして保存</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="テンプレート名（例: 決算後反発）"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-border/40 bg-card/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
+                />
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={!templateName.trim()}
+                  className="px-4 py-2 rounded-lg bg-primary/20 border border-primary/30 text-primary text-sm font-medium hover:bg-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          )}
+          {templateSaved && (
+            <div className="mb-6 p-3 rounded-xl border border-success/30 bg-success/10 text-sm text-success text-center">
+              テンプレートを保存しました
+            </div>
+          )}
 
           <div className="space-y-3">
             {/* MooMoo証券 */}
@@ -1519,6 +1632,74 @@ export default function CheckFlow() {
               )}
 
               <div className="mt-8">
+                {step.key === "ticker" && phase === "questions" && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => setTemplateModalOpen(true)}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border/40 bg-card/50 hover:bg-card hover:border-border/70 transition-all text-sm text-muted-foreground"
+                    >
+                      <span>テンプレートから始める</span>
+                      <span className="text-xs text-primary/70">▸ {templates.length}件</span>
+                    </button>
+                    {/* Template modal */}
+                    {templateModalOpen && (
+                      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setTemplateModalOpen(false)}>
+                        <div
+                          className="w-full max-w-lg bg-background border border-border/30 rounded-t-2xl p-6 max-h-[70vh] overflow-y-auto"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <h3 className="font-display font-bold text-lg text-foreground mb-4">テンプレートを選択</h3>
+                          {templates.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-6">テンプレートはまだありません。<br />チェックフロー完了後に保存できます。</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {templates.map((tmpl) => (
+                                <div key={tmpl.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-card/50">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm text-foreground">{tmpl.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{tmpl.direction === "long" ? "ロング" : "ショート"} · {tmpl.entryReason}</p>
+                                  </div>
+                                  <div className="flex gap-2 shrink-0">
+                                    <button
+                                      onClick={() => {
+                                        setAnswers((prev) => ({
+                                          ...prev,
+                                          direction: tmpl.direction,
+                                          triggerReason: tmpl.triggerReason,
+                                          entryReason: tmpl.entryReason,
+                                        }));
+                                        setTemplateModalOpen(false);
+                                        toast.success(`「${tmpl.name}」を適用しました`);
+                                      }}
+                                      className="text-xs px-3 py-1.5 rounded-lg bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 transition-colors"
+                                    >
+                                      適用
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        deleteTemplate(tmpl.id);
+                                        setTemplates(getTemplates());
+                                      }}
+                                      className="text-xs px-2 py-1.5 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors"
+                                    >
+                                      削除
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => setTemplateModalOpen(false)}
+                            className="mt-4 w-full py-2.5 rounded-xl border border-border/30 text-sm text-muted-foreground hover:bg-card transition-colors"
+                          >
+                            閉じる
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {step.key === "ticker" && (
                   <div className="space-y-3">
                     <TickerSearchDropdown
@@ -1602,13 +1783,22 @@ export default function CheckFlow() {
 
                 {/* ── エントリー理由 ── */}
                 {step.key === "reason" && (
-                  <Textarea
-                    placeholder="この銘柄を取引したい根拠を具体的に書いてください…"
-                    value={answers.entryReason ?? ""}
-                    onChange={(e) => updateAnswer("entryReason", e.target.value)}
-                    className="min-h-[120px] bg-card/50 border-border/40"
-                    autoFocus
-                  />
+                  <div className="relative">
+                    <Textarea
+                      placeholder="この銘柄を取引したい根拠を具体的に書いてください…"
+                      value={answers.entryReason ?? ""}
+                      onChange={(e) => updateAnswer("entryReason", e.target.value)}
+                      className="min-h-[120px] bg-card/50 border-border/40 pr-12"
+                      autoFocus
+                    />
+                    <div className="absolute top-2 right-2">
+                      <MicButton
+                        onResult={(text) =>
+                          updateAnswer("entryReason", (answers.entryReason ? answers.entryReason + " " : "") + text)
+                        }
+                      />
+                    </div>
+                  </div>
                 )}
 
                 {/* ── 情報源 ── */}
@@ -1624,13 +1814,22 @@ export default function CheckFlow() {
 
                 {/* ── 今入る理由 ── */}
                 {step.key === "whyNow" && (
-                  <Textarea
-                    placeholder="明日ではなく今取引したい理由は…"
-                    value={answers.whyNow ?? ""}
-                    onChange={(e) => updateAnswer("whyNow", e.target.value)}
-                    className="min-h-[120px] bg-card/50 border-border/40"
-                    autoFocus
-                  />
+                  <div className="relative">
+                    <Textarea
+                      placeholder="明日ではなく今取引したい理由は…"
+                      value={answers.whyNow ?? ""}
+                      onChange={(e) => updateAnswer("whyNow", e.target.value)}
+                      className="min-h-[120px] bg-card/50 border-border/40 pr-12"
+                      autoFocus
+                    />
+                    <div className="absolute top-2 right-2">
+                      <MicButton
+                        onResult={(text) =>
+                          updateAnswer("whyNow", (answers.whyNow ? answers.whyNow + " " : "") + text)
+                        }
+                      />
+                    </div>
+                  </div>
                 )}
 
                 {/* ── 保有期間（デイトレ / スイングカード）── */}

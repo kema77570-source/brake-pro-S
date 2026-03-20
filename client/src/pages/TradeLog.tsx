@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Plus, TrendingUp, TrendingDown, CheckCircle, XCircle,
-  Clock, ChevronRight, Trash2, Send, Timer,
+  Clock, ChevronRight, Trash2, Send, Timer, AlertOctagon, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,8 +34,15 @@ function formatCountdown(ms: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function CoolingTimer({ coolingUntil }: { coolingUntil: string }) {
+function CoolingTimer({
+  coolingUntil,
+  onExtend,
+}: {
+  coolingUntil: string;
+  onExtend: () => void;
+}) {
   const [remaining, setRemaining] = useState(() => new Date(coolingUntil).getTime() - Date.now());
+  const [showImpulseCheck, setShowImpulseCheck] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -49,15 +56,46 @@ function CoolingTimer({ coolingUntil }: { coolingUntil: string }) {
   if (remaining <= 0) return <span className="text-emerald-400 text-xs font-medium">冷却完了</span>;
 
   return (
-    <div className="flex items-center gap-2">
-      <Timer className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-      <span className="font-mono text-blue-400 font-bold text-sm">{formatCountdown(remaining)}</span>
-      <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden min-w-[60px]">
-        <div
-          className="h-full bg-blue-400 rounded-full transition-none"
-          style={{ width: `${pct}%` }}
-        />
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Timer className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+        <span className="font-mono text-blue-400 font-bold text-sm">{formatCountdown(remaining)}</span>
+        <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden min-w-[60px]">
+          <div
+            className="h-full bg-blue-400 rounded-full transition-none"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <button
+          onClick={() => setShowImpulseCheck(true)}
+          className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors shrink-0"
+        >
+          <Zap className="w-3 h-3" />衝動チェック
+        </button>
       </div>
+
+      {showImpulseCheck && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-xs text-amber-300 font-medium">今すぐ入りたい衝動を感じていますか？</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setShowImpulseCheck(false);
+                onExtend();
+              }}
+              className="flex-1 text-xs py-1.5 rounded-lg bg-destructive/20 border border-destructive/30 text-destructive hover:bg-destructive/30 transition-colors font-medium"
+            >
+              はい（衝動あり）
+            </button>
+            <button
+              onClick={() => setShowImpulseCheck(false)}
+              className="flex-1 text-xs py-1.5 rounded-lg bg-success/10 border border-success/20 text-success hover:bg-success/20 transition-colors font-medium"
+            >
+              問題なし
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -70,6 +108,7 @@ export default function TradeLog() {
   const [trades, setTrades] = useState<TradeEntry[]>(() => getTrades());
   const [sellTarget, setSellTarget] = useState<TradeEntry | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [slConfirmId, setSlConfirmId] = useState<string | null>(null);
 
   // Tick every second to auto-expire cooling trades
   useEffect(() => {
@@ -116,6 +155,29 @@ export default function TradeLog() {
     saveTrade({ ...trade, status: "active", entryTime: new Date().toISOString(), coolingUntil: undefined });
     refresh();
     toast.success(`${trade.ticker} を保有銘柄に移動しました`);
+  };
+
+  const handleExtendCooling = (trade: TradeEntry) => {
+    const currentUntil = trade.coolingUntil ? new Date(trade.coolingUntil).getTime() : Date.now();
+    const newUntil = new Date(Math.max(currentUntil, Date.now()) + 30 * 60 * 1000).toISOString();
+    saveTrade({ ...trade, coolingUntil: newUntil });
+    refresh();
+    toast.warning(`${trade.ticker} の冷却時間を30分延長しました`);
+  };
+
+  const handleSlDelay = (trade: TradeEntry) => {
+    const newCount = (trade.slDelayCount ?? 0) + 1;
+    const key = `sl_delay_${trade.id}`;
+    localStorage.setItem(key, String(newCount));
+    saveTrade({ ...trade, slDelayCount: newCount });
+    refresh();
+    setSlConfirmId(null);
+    toast.warning(`先延ばし記録: ${newCount}回目`);
+  };
+
+  const handleSlExecute = (trade: TradeEntry) => {
+    handleClose(trade, "loss");
+    setSlConfirmId(null);
   };
 
   return (
@@ -218,7 +280,40 @@ export default function TradeLog() {
               {/* Cooling timer */}
               {trade.status === "cooling" && trade.coolingUntil && (
                 <div className="mb-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <CoolingTimer coolingUntil={trade.coolingUntil} />
+                  <CoolingTimer
+                    coolingUntil={trade.coolingUntil}
+                    onExtend={() => handleExtendCooling(trade)}
+                  />
+                </div>
+              )}
+
+              {/* Stop-loss confirm dialog */}
+              {trade.status === "active" && trade.stopLossPrice && slConfirmId === trade.id && (
+                <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-2">
+                  <p className="text-xs text-destructive font-medium flex items-center gap-1.5">
+                    <AlertOctagon className="w-3.5 h-3.5" />
+                    損切りラインに達しましたか？（設定: {trade.stopLossPrice.toLocaleString()}）
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSlExecute(trade)}
+                      className="flex-1 text-xs py-1.5 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30 transition-colors font-medium"
+                    >
+                      実行した（損切り決済）
+                    </button>
+                    <button
+                      onClick={() => handleSlDelay(trade)}
+                      className="flex-1 text-xs py-1.5 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground hover:bg-muted/50 transition-colors font-medium"
+                    >
+                      まだ保留
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSlConfirmId(null)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    キャンセル
+                  </button>
                 </div>
               )}
 
@@ -291,6 +386,19 @@ export default function TradeLog() {
                         className="text-xs text-primary border-primary/30 hover:bg-primary/10"
                       >
                         <Send className="w-3 h-3 mr-1" />売却注文
+                      </Button>
+                    )}
+                    {trade.stopLossPrice && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSlConfirmId(slConfirmId === trade.id ? null : trade.id)}
+                        className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                      >
+                        <AlertOctagon className="w-3 h-3 mr-1" />損切り確認
+                        {trade.slDelayCount ? (
+                          <span className="ml-1 text-[10px] bg-destructive/20 px-1 rounded">{trade.slDelayCount}回</span>
+                        ) : null}
                       </Button>
                     )}
                     <Button size="sm" variant="outline" onClick={() => handleClose(trade, "win")} className="text-xs text-success border-success/30 hover:bg-success/10">

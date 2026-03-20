@@ -6,6 +6,10 @@ import type {
   LossStreak,
   HeartRateReading,
   AppSettings,
+  DailyCondition,
+  TradeTemplate,
+  AccountTransaction,
+  Challenge,
 } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { nanoid } from "nanoid";
@@ -18,6 +22,10 @@ const KEYS = {
   LOSS_STREAK: "brake_loss_streak",
   HEART_RATE: "brake_heart_rate",
   SETTINGS: "brake_settings",
+  DAILY_CONDITION: "brake_daily_condition",
+  TEMPLATES: "brake_templates",
+  TRANSACTIONS: "brake_transactions",
+  CHALLENGES: "brake_challenges",
 } as const;
 
 // ─── Generic helpers ─────────────────────────────────────────────────────────
@@ -230,4 +238,67 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
   const updated = { ...current, ...updates };
   saveSettings(updated);
   return updated;
+}
+
+// ─── Daily Condition ─────────────────────────────────────────────────────────
+export function getDailyCondition(date: string): DailyCondition | null {
+  const all = getItem<Record<string, DailyCondition>>(KEYS.DAILY_CONDITION, {});
+  return all[date] ?? null;
+}
+export function saveDailyCondition(condition: DailyCondition): void {
+  const all = getItem<Record<string, DailyCondition>>(KEYS.DAILY_CONDITION, {});
+  all[condition.date] = condition;
+  setItem(KEYS.DAILY_CONDITION, all);
+}
+
+// ─── Templates ───────────────────────────────────────────────────────────────
+export function getTemplates(): TradeTemplate[] {
+  return getItem<TradeTemplate[]>(KEYS.TEMPLATES, []);
+}
+export function saveTemplate(template: Omit<TradeTemplate, "id" | "createdAt">): TradeTemplate {
+  const newTemplate: TradeTemplate = {
+    ...template,
+    id: nanoid(),
+    createdAt: new Date().toISOString(),
+  };
+  const templates = getTemplates();
+  templates.unshift(newTemplate);
+  setItem(KEYS.TEMPLATES, templates);
+  return newTemplate;
+}
+export function deleteTemplate(id: string): void {
+  setItem(KEYS.TEMPLATES, getTemplates().filter((t) => t.id !== id));
+}
+
+// ─── Account Transactions ────────────────────────────────────────────────────
+export function getTransactions(): AccountTransaction[] {
+  return getItem<AccountTransaction[]>(KEYS.TRANSACTIONS, []);
+}
+export function saveTransaction(transaction: AccountTransaction): void {
+  const transactions = getTransactions();
+  const idx = transactions.findIndex((t) => t.id === transaction.id);
+  if (idx >= 0) {
+    transactions[idx] = transaction;
+  } else {
+    transactions.unshift(transaction);
+  }
+  setItem(KEYS.TRANSACTIONS, transactions);
+}
+export function deleteTransaction(id: string): void {
+  setItem(KEYS.TRANSACTIONS, getTransactions().filter((t) => t.id !== id));
+}
+
+// ─── Challenges ──────────────────────────────────────────────────────────────
+export function getChallenges(): Challenge[] {
+  return getItem<Challenge[]>(KEYS.CHALLENGES, []);
+}
+export function saveChallenge(challenge: Challenge): void {
+  const challenges = getChallenges();
+  const idx = challenges.findIndex((c) => c.id === challenge.id);
+  if (idx >= 0) {
+    challenges[idx] = challenge;
+  } else {
+    challenges.unshift(challenge);
+  }
+  setItem(KEYS.CHALLENGES, challenges);
 }

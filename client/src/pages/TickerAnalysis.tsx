@@ -48,6 +48,12 @@ export default function TickerAnalysis() {
   const [expandedRanking, setExpandedRanking] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"trades" | "winrate" | "rr" | "pnl">("trades");
 
+  // 弱点銘柄: 勝率50%未満 かつ 平均FOMO60以上
+  const weakTickers = useMemo(
+    () => allStats.filter((s) => s.winRate < 50 && s.avgFomoScore >= 60),
+    [allStats]
+  );
+
   // Sort all stats
   const sortedStats = useMemo(() => {
     const sorted = [...allStats];
@@ -145,6 +151,63 @@ export default function TickerAnalysis() {
             ))}
           </div>
         </motion.div>
+
+        {/* 弱点銘柄ハイライト */}
+        {weakTickers.length > 0 && (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeUp}
+            custom={1.5}
+            className="rounded-xl border border-destructive/40 bg-destructive/8 p-6 mb-8"
+          >
+            <h3 className="font-display font-bold text-lg text-destructive mb-1 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              弱点銘柄 — 要注意
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              勝率50%未満 かつ 平均FOMAスコア60以上の銘柄。FOMOに流されやすいため慎重に
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {weakTickers.map((stat) => (
+                <div
+                  key={stat.ticker}
+                  className="rounded-xl bg-destructive/15 border border-destructive/30 p-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-mono font-bold text-foreground">{stat.ticker}</p>
+                      <p className="text-xs text-muted-foreground">{stat.name}</p>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full bg-destructive/20 text-destructive font-medium">
+                      要注意
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">勝率</p>
+                      <p className="font-mono font-bold text-destructive">{stat.winRate}%</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">平均FOMO</p>
+                      <p className="font-mono font-bold text-warning">{stat.avgFomoScore}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">平均RR比</p>
+                      <p className={cn("font-mono font-bold", getRRColor(stat.avgRiskRewardRatio))}>
+                        1:{stat.avgRiskRewardRatio}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">取引回数</p>
+                      <p className="font-mono font-bold text-foreground">{stat.totalTrades}件</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Win Rate vs RR Scatter */}
         <motion.div

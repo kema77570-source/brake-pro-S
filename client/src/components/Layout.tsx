@@ -27,6 +27,8 @@ import {
   Dumbbell,
   Microscope,
   SendHorizonal,
+  Wallet,
+  Flame,
 } from "lucide-react";
 import { useUserAuth } from "@/contexts/UserAuthContext";
 import { useApp } from "@/contexts/AppContext";
@@ -61,6 +63,8 @@ const NAV_ITEMS = [
   { href: "/grip",           icon: Dumbbell,        label: "握力選手権" },
   { href: "/notifications",  icon: Bell,            label: "通知設定" },
   { href: "/order-manager", icon: SendHorizonal,   label: "注文管理" },
+  { href: "/account",       icon: Wallet,          label: "資金管理" },
+  { href: "/challenge",     icon: Flame,           label: "チャレンジ" },
 ];
 
 interface LayoutProps {

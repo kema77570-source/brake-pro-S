@@ -20,10 +20,11 @@ import {
   Timer,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { getTrades, getAlarms } from "@/lib/storage";
+import { getTrades, getAlarms, getDailyCondition, saveDailyCondition } from "@/lib/storage";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { saveTrade } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import type { DailyCondition } from "@/lib/types";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "00:00";
@@ -72,12 +73,19 @@ function CoolingBanner({ trade, onNavigate }: { trade: { id: string; ticker: str
   );
 }
 
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Home() {
   const [, navigate] = useLocation();
   const { suspended, suspendedUntil, lossStreak, hrWarning, latestHR, settings } = useApp();
 
   const [trades, setTrades] = useState(() => getTrades());
   const alarms = useMemo(() => getAlarms().filter((a) => a.status === "active"), []);
+
+  const [condition, setCondition] = useState<DailyCondition | null>(() => getDailyCondition(todayKey()));
+  const [draftCondition, setDraftCondition] = useState<Partial<DailyCondition>>({});
 
   // Tick every second — auto-expire cooling trades
   useEffect(() => {
@@ -411,6 +419,93 @@ export default function Home() {
                 : "心拍数 — データなし"}
             </p>
           </div>
+        </div>
+      </motion.div>
+
+      {/* 今日のコンディション */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.12 }}
+        className="px-4 lg:px-6 mt-4"
+      >
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-3">
+            今日のコンディション
+          </p>
+          {condition ? (
+            <div className="flex items-center justify-between">
+              <div className="flex gap-4 text-2xl">
+                <div className="text-center">
+                  <div>{condition.sleep === 3 ? "😴" : condition.sleep === 2 ? "🛌" : "😵"}</div>
+                  <p className="text-[10px] text-muted-foreground mt-1">睡眠</p>
+                </div>
+                <div className="text-center">
+                  <div>{condition.health === 3 ? "💪" : condition.health === 2 ? "🙂" : "😷"}</div>
+                  <p className="text-[10px] text-muted-foreground mt-1">体調</p>
+                </div>
+                <div className="text-center">
+                  <div>{condition.stress === 3 ? "😌" : condition.stress === 2 ? "😐" : "😤"}</div>
+                  <p className="text-[10px] text-muted-foreground mt-1">ストレス</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCondition(null)}
+                className="text-[11px] text-primary/60 hover:text-primary transition-colors"
+              >
+                再入力
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(
+                [
+                  { key: "sleep" as const, label: "睡眠", opts: [{ v: 1, e: "😵" }, { v: 2, e: "🛌" }, { v: 3, e: "😴" }] },
+                  { key: "health" as const, label: "体調", opts: [{ v: 1, e: "😷" }, { v: 2, e: "🙂" }, { v: 3, e: "💪" }] },
+                  { key: "stress" as const, label: "ストレス", opts: [{ v: 1, e: "😤" }, { v: 2, e: "😐" }, { v: 3, e: "😌" }] },
+                ] as const
+              ).map(({ key, label, opts }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="text-[11px] text-muted-foreground w-16 shrink-0">{label}</span>
+                  <div className="flex gap-2">
+                    {opts.map(({ v, e }) => (
+                      <button
+                        key={v}
+                        onClick={() => setDraftCondition((prev) => ({ ...prev, [key]: v as 1 | 2 | 3 }))}
+                        className={cn(
+                          "w-10 h-10 rounded-lg border text-lg transition-all",
+                          draftCondition[key] === v
+                            ? "border-primary bg-primary/20 scale-110"
+                            : "border-border/30 bg-card/40 hover:border-border/60"
+                        )}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {draftCondition.sleep && draftCondition.health && draftCondition.stress && (
+                <button
+                  onClick={() => {
+                    const today = todayKey();
+                    const newCondition: DailyCondition = {
+                      date: today,
+                      sleep: draftCondition.sleep!,
+                      health: draftCondition.health!,
+                      stress: draftCondition.stress!,
+                    };
+                    saveDailyCondition(newCondition);
+                    setCondition(newCondition);
+                    setDraftCondition({});
+                  }}
+                  className="w-full mt-1 py-2 rounded-lg bg-primary/20 border border-primary/30 text-sm text-primary font-medium hover:bg-primary/30 transition-colors"
+                >
+                  記録する
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
 

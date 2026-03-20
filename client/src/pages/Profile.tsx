@@ -7,6 +7,7 @@ import { getTrades } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Trophy, Zap, TrendingUp, Calendar, Award } from "lucide-react";
+import WinCalendar from "@/components/WinCalendar";
 
 export default function Profile() {
   const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
@@ -212,6 +213,15 @@ export default function Profile() {
             </div>
           </div>
         )}
+
+        {/* Win Calendar */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold mb-2">ストリーク勝利カレンダー</h2>
+          <p className="text-sm text-muted-foreground mb-6">過去3ヶ月のトレード結果カレンダー</p>
+          <Card className="p-6 border-border bg-card/50">
+            <WinCalendar trades={trades} />
+          </Card>
+        </div>
       </div>
     </div>
   );

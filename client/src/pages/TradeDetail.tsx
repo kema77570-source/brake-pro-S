@@ -18,6 +18,7 @@ export default function TradeDetail() {
   const { settings } = useApp();
   const [trade, setTrade] = useState(() => getTradeById(id));
   const [reflection, setReflection] = useState(trade?.reflection ?? "");
+  const [journalNote, setJournalNote] = useState(trade?.journalNote ?? "");
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const holdingLimits = settings.holdingLimits ?? DEFAULT_HOLDING_LIMITS;
 
@@ -39,6 +40,13 @@ export default function TradeDetail() {
     saveTrade(updated);
     setTrade(updated);
     toast.success("振り返りを保存しました");
+  };
+
+  const saveJournalNote = () => {
+    const updated = { ...trade, journalNote };
+    saveTrade(updated);
+    setTrade(updated);
+    toast.success("日記を保存しました");
   };
 
   const fomoLevel = trade.fomoScore >= 75 ? "critical" : trade.fomoScore >= 50 ? "high" : trade.fomoScore >= 30 ? "medium" : "low";
@@ -260,7 +268,7 @@ export default function TradeDetail() {
         </div>
 
         {/* Reflection */}
-        <div className="rounded-xl border border-border/30 bg-card/50 p-5 mb-8">
+        <div className="rounded-xl border border-border/30 bg-card/50 p-5 mb-5">
           <h2 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-4">振り返り</h2>
           <Textarea
             placeholder="このトレードから何を学びましたか？次回に活かせることは？"
@@ -272,6 +280,23 @@ export default function TradeDetail() {
             振り返りを保存
           </Button>
         </div>
+
+        {/* Journal — closed trades only */}
+        {trade.status === "closed" && (
+          <div className="rounded-xl border border-border/30 bg-card/50 p-5 mb-8">
+            <h2 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-4">日記</h2>
+            <p className="text-xs text-muted-foreground mb-3">なぜ勝った / 負けた？ 感情・判断・相場の動きを自由に記録してください</p>
+            <Textarea
+              placeholder="例: FOMO で早めにエントリーしてしまった。次回は冷却時間を守る…"
+              value={journalNote}
+              onChange={(e) => setJournalNote(e.target.value)}
+              className="min-h-[140px] bg-card/30 border-border/30 mb-4"
+            />
+            <Button onClick={saveJournalNote} variant="outline" className="w-full border-border/40 hover:bg-card">
+              日記を保存
+            </Button>
+          </div>
+        )}
       </div>
 
       <OrderFormModal
