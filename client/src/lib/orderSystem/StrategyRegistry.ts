@@ -71,8 +71,8 @@ export const STRATEGIES: Record<StrategyId, StrategyDefinition> = {
     supportedMarkets: ['US', 'JP'],
     params: [
       { id: 'qty', label: '合計数量', type: 'number', required: true, tooltip: '合計で発注したい株数' },
-      { id: 'endTime', label: '終了時刻', type: 'time', required: true, tooltip: 'いつまでに買い終えるか' },
       { id: 'sliceCount', label: '分割回数', type: 'number', required: true, tooltip: '何回に分けて発注するか' },
+      { id: 'intervalMinutes', label: '実行間隔 (分)', type: 'number', required: true, tooltip: '何分おきに発注するか' },
     ],
     supportedTIF: ['DAY'],
     allowPrePostMarket: false,
@@ -92,7 +92,8 @@ export const STRATEGIES: Record<StrategyId, StrategyDefinition> = {
     supportedMarkets: ['US', 'JP'],
     params: [
       { id: 'qty', label: '合計数量', type: 'number', required: true, tooltip: '合計で発注したい株数' },
-      { id: 'endTime', label: '終了時刻', type: 'time', required: true, tooltip: 'いつまでに買い終えるか' },
+      { id: 'sliceCount', label: '分割回数', type: 'number', required: true, tooltip: '何回に分けて発注するか' },
+      { id: 'intervalMinutes', label: '実行間隔 (分)', type: 'number', required: true, tooltip: '何分おきに発注するか' },
     ],
     supportedTIF: ['DAY'],
     allowPrePostMarket: false,

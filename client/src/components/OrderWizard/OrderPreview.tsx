@@ -116,23 +116,24 @@ export default function OrderPreview({
         </div>
 
         {/* 2. 執行予定表 (Timeline) */}
-        {strategy.canDryRun && (
+        {(strategy.canDryRun || params.schedule) && (
           <div className="space-y-3">
             <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <Clock className="w-3 h-3" />
-              執行予定表 (シミュレーション)
+              執行予定表 {params.schedule ? '(カスタム設定)' : '(シミュレーション)'}
             </h4>
             <div className="rounded-xl border border-border/50 bg-background overflow-hidden">
               <div className="max-h-32 overflow-y-auto">
-                {/* Mock timeline if plan is missing */}
-                {(plan?.timeline || Array.from({ length: 5 })).map((t: any, i: number) => (
+                {(params.schedule || plan?.timeline || Array.from({ length: 5 })).map((t: any, i: number) => (
                   <div key={i} className="flex items-center justify-between px-4 py-2 text-[11px] border-b border-border/10 last:border-0">
                     <div className="flex items-center gap-3">
-                      <span className="text-muted-foreground font-mono">{t?.timestamp || `T+${i*5}m`}</span>
+                      <span className="text-muted-foreground font-mono">
+                        {t?.minutesAfter !== undefined ? `T+${t.minutesAfter}分` : t?.timestamp || `T+${i*5}m`}
+                      </span>
                       <span className="font-bold">{t?.qty || Math.floor(params.qty / 5)} 株</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground italic">
-                      取消期限: {t?.cancelable_until || '執行10秒前'}
+                      {t?.label || `第 ${i+1} 回執行`}
                     </span>
                   </div>
                 ))}
