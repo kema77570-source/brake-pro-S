@@ -1,6 +1,33 @@
 {
-  "buildCommand": "pnpm run build:frontend",
-  "outputDirectory": "dist/public",
-  "installCommand": "pnpm install",
-  "framework": null
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://8000-space-manus-retainiq-t20260316200245.manus.im/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://8000-space-manus-retainiq-t20260316200245.manus.im/health"
+    },
+    {
+      "source": "/watchlist",
+      "destination": "https://8001-space-manus-retainiq-t20260316200245.manus.im/watchlist"
+    },
+    {
+      "source": "/settings",
+      "destination": "https://8001-space-manus-retainiq-t20260316200245.manus.im/settings"
+    },
+    {
+      "source": "/history",
+      "destination": "https://8001-space-manus-retainiq-t20260316200245.manus.im/history"
+    },
+    {
+      "source": "/trigger/:path*",
+      "destination": "https://8001-space-manus-retainiq-t20260316200245.manus.im/trigger/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
