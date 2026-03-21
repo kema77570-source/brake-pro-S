@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Lock
 } from 'lucide-react';
+import HoldToConfirm from './HoldToConfirm';
 import { cn } from '@/lib/utils';
 
 interface OrderPreviewProps {
@@ -181,18 +182,12 @@ export default function OrderPreview({
         >
           修正する
         </Button>
-        <Button 
-          type="button" 
+        <HoldToConfirm 
+          onConfirm={onNext}
           disabled={!hasScrolledToBottom}
-          onClick={onNext}
-          className={cn(
-            "flex-[2] h-12 rounded-xl font-bold gap-2 transition-all",
-            !hasScrolledToBottom ? "opacity-50 grayscale" : "bg-primary hover:bg-primary/90"
-          )}
-        >
-          {!hasScrolledToBottom ? <Lock className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-          リスクを理解して発注
-        </Button>
+          label="リスクを理解して発注"
+          className="flex-[2]"
+        />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { STRATEGIES, StrategyId } from '@/lib/orderSystem/StrategyRegistry';
 import StrategySelector from './StrategySelector';
 import StrategyConfigurator from './StrategyConfigurator';
 import OrderPreview from './OrderPreview';
+import TradeSurvey from './TradeSurvey';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -20,7 +21,7 @@ interface OrderWizardContainerProps {
   onSuccess?: (result: any) => void;
 }
 
-type Step = 'select' | 'config' | 'preview' | 'executing' | 'done' | 'error';
+type Step = 'select' | 'config' | 'preview' | 'executing' | 'survey' | 'done' | 'error';
 
 export default function OrderWizardContainer({ 
   ticker, 
@@ -95,7 +96,7 @@ export default function OrderWizardContainer({
         }
       });
       setResult(res.data);
-      setStep('done');
+      setStep('survey');
       if (onSuccess) onSuccess(res.data);
     } catch (err: any) {
       const msg = err.response?.data?.detail || "発注に失敗しました。";
@@ -107,6 +108,19 @@ export default function OrderWizardContainer({
   const handleBack = () => {
     if (step === 'config') setStep('select');
     if (step === 'preview') setStep('config');
+  };
+
+  const handleSurveyComplete = async (choice: string) => {
+    // Optionally save survey result to backend
+    try {
+      await axios.post(`${API_BASE}/api/trade/survey`, {
+        order_id: result?.order_id,
+        choice
+      });
+    } catch (e) {
+      console.error("Failed to save survey", e);
+    }
+    setStep('done');
   };
 
   return (
@@ -181,6 +195,10 @@ export default function OrderWizardContainer({
                     </p>
                   </div>
                 </div>
+              )}
+
+              {step === 'survey' && (
+                <TradeSurvey onComplete={handleSurveyComplete} />
               )}
 
               {step === 'done' && (
