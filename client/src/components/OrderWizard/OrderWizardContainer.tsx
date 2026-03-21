@@ -9,7 +9,7 @@ import axios from 'axios';
 import { Loader2, CheckCircle2, AlertCircle, X, ShieldCheck, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { v4 as uuidv4 } from 'uuid';
+import { nanoid } from 'nanoid';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -39,7 +39,7 @@ export default function OrderWizardContainer({
 
   // 1. Generate Idempotency Key on start
   useEffect(() => {
-    setIdempotencyKey(uuidv4());
+    setIdempotencyKey(nanoid());
   }, []);
 
   const handleSelect = (id: StrategyId) => {
